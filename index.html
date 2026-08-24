@@ -86,7 +86,27 @@
   /* ---------- mobile-friendly data entry -------------------------------
      Aimed at RMs filling plans on a phone: no accidental zoom, finger-sized
      targets, and wide row editors that scroll instead of squashing. */
+  .lcellwrap{display:contents;}
   @media(max-width:820px){
+    /* Editable list rows: the JS sets grid-template-columns inline, so we must
+       use !important to stack them. Each field becomes a labelled line, and the
+       column header strip is hidden because labels now sit with the fields. */
+    .lhead{display:none !important;}
+    .lrow{grid-template-columns:1fr !important;gap:10px !important;
+      border:1px solid var(--line);border-radius:12px;padding:12px 12px 10px;
+      margin-bottom:12px;background:#fff;position:relative;}
+    .lrow .lcellwrap{display:block !important;}
+    .lrow .lcellwrap::before{content:attr(data-label);display:block;font-size:12px;
+      font-weight:600;color:#5B6472;margin:0 0 4px 2px;}
+    .lrow .lcell{width:100%;}
+    .lrow > button.danger{position:absolute;top:8px;right:8px;width:auto;
+      min-height:34px;padding:5px 12px;}
+    /* goal cards + fund rows stack too */
+    .goalcard .ghead{grid-template-columns:1fr !important;gap:10px !important;}
+    .fundhead{display:none !important;}
+    .fundrow{grid-template-columns:1fr !important;gap:8px !important;
+      border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;}
+    .fundrow > *{width:100%;}
     /* 16px stops iOS Safari auto-zooming when a field gets focus */
     input,select,textarea{font-size:16px;padding:12px 12px;border-radius:10px;}
     label{font-size:13px;font-weight:600;margin-bottom:4px;display:block;}
@@ -198,6 +218,10 @@
   .pgsec{width:1123px;min-height:790px;box-sizing:border-box;display:flex;flex-direction:column;}
   .pgsec .pbody{flex:1 1 auto;}
   .pgsec .pfoot{margin-top:auto;}
+  /* faint "continued" marker: bottom-right, above the footer, never a heading */
+  .contmark{margin-top:auto;text-align:right;font-size:10.5px;color:#9AA6B6;
+    letter-spacing:.4px;padding:0 2px 2px 0;font-family:"Segoe UI",system-ui,Arial,sans-serif;}
+  .pgsec .contmark + .pfoot{margin-top:0;}
   .pbody h2,.pbody h3{page-break-after:avoid;}
   .pbar{background:var(--forest);color:#fff;padding:14px 30px;display:flex;justify-content:space-between;align-items:baseline;}
   .pbar .w4w{font-size:19px;font-weight:800;} .pbar .w4w b{color:var(--gold);}
@@ -360,9 +384,11 @@
         </div>
         <button class="btn" style="margin-top:14px;" onclick="saveBrand()">Save brand assets</button>
         <h3 style="margin-top:22px;">Contact &amp; social links (shown in reports)</h3>
-        <p class="sub">Optional — whichever you fill will appear on the report's contact page.</p>
+        <p class="sub">Optional — whichever you fill will appear on the report's contact page. Phone and email are set here only, so relationship managers cannot change them on a plan.</p>
         <div class="grid3">
           <div><label>Website</label><input id="bc_website" placeholder="www.wallet4wealth.com"></div>
+          <div><label>Company phone <span class="muted" style="font-weight:400;">(admin only)</span></label><input id="bc_phone" placeholder="+91-9124655100"></div>
+          <div><label>Company email <span class="muted" style="font-weight:400;">(admin only)</span></label><input id="bc_email" placeholder="support@wallet4wealth.com"></div>
           <div><label>YouTube</label><input id="bc_youtube" placeholder="youtube.com/@..."></div>
           <div><label>Facebook</label><input id="bc_facebook" placeholder="facebook.com/..."></div>
           <div><label>WhatsApp</label><input id="bc_whatsapp" placeholder="+91-..."></div>
@@ -846,7 +872,11 @@ function buildRow(name,data){
       if(c.list) f.setAttribute("list",c.list);
     }
     f.dataset.key=c.key; f.className="lcell";
-    row.appendChild(f);
+    f.setAttribute("aria-label",c.label);
+    const wrap=document.createElement("div");
+    wrap.className="lcellwrap"; wrap.dataset.label=c.label;
+    wrap.appendChild(f);
+    row.appendChild(wrap);
   });
   const rm=document.createElement("button"); rm.className="btn danger small"; rm.textContent="✕";
   rm.onclick=()=>{ row.remove(); recalc(); };
@@ -1002,7 +1032,7 @@ function buildGoalCard(g){
       <div><label>Present cost</label><input class="gf" data-key="presentCost" type="number" value="${g.presentCost||""}" placeholder="1000000"></div>
       <div><label>Years</label><input class="gf" data-key="years" type="number" value="${g.years||""}" placeholder="5"></div>
       <div><label>Infl %</label><input class="gf" data-key="inflation" type="number" value="${g.inflation!=null?g.inflation:6}"></div>
-      <div><label>Return %</label><div style="display:flex;align-items:center;gap:6px;"><input class="gf" data-key="returnRate" type="number" min="5" max="12" ${g.manualRoi?"":"readonly"} title="Tick 'edit' to set manually (5–12%)" style="background:${g.manualRoi?"#fff":"#eef2fa"};flex:1;" value="${g.returnRate!=null?g.returnRate:""}"><label style="font-size:11px;white-space:nowrap;display:flex;align-items:center;gap:3px;"><input type="checkbox" class="gf" data-key="manualRoi" ${g.manualRoi?"checked":""} onchange="toggleGoalRoi(this)" style="width:auto;">edit</label></div></div>
+      <div><label>Return %</label><div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><input class="gf" data-key="returnRate" type="number" min="5" max="12" step="0.1" ${g.manualRoi?"":"readonly"} title="Tick 'edit' to set manually (5–12%)" style="background:${g.manualRoi?"#fff":"#eef2fa"};flex:1 1 72px;min-width:72px;" value="${g.returnRate!=null?g.returnRate:""}"><label style="font-size:11px;white-space:nowrap;display:flex;align-items:center;gap:3px;"><input type="checkbox" class="gf" data-key="manualRoi" ${g.manualRoi?"checked":""} onchange="toggleGoalRoi(this)" style="width:auto;">edit</label></div></div>
       <div><button class="btn danger small" onclick="this.closest('.goalcard').remove();recalc();">Remove</button></div>
     </div>
     <div class="grow-remarks"><input class="gf" data-key="remarks" value="${escapeHtml(g.remarks||"")}" placeholder="Remarks (e.g. spread over 2 years)"></div>
@@ -1566,7 +1596,7 @@ function compressImage(file,maxDim,quality,format){
 }
 const PV={logo:"pvLogo",director:"pvDir",team:"pvTeam"};
 function pickBrand(key,input){ const f=input.files[0]; if(!f) return; compressImage(f,key==="logo"?600:1000,0.82,key==="logo"?"png":"jpeg").then(d=>{ brandDraft[key]=d; $(PV[key]).innerHTML=`<img src="${d}">`; }); }
-const CONTACT_KEYS=["website","youtube","facebook","whatsapp","android","ios"];
+const CONTACT_KEYS=["website","youtube","facebook","whatsapp","android","ios","phone","email"];
 function loadBrand(){
   db.collection("settings").doc("brand").get().then(doc=>{
     BRAND=doc.exists?doc.data():{}; brandDraft={...BRAND};
@@ -1670,7 +1700,12 @@ const PK_MF=[
   ["GIFT City Funds","pk_gift"]
 ];
 
-function pfoot(){ return `<div class="pfoot">www.wallet4wealth.com &nbsp;|&nbsp; support@wallet4wealth.com &nbsp;|&nbsp; +91-9124655100 &nbsp;·&nbsp; ${t("foot_note")}</div>`; }
+/* Company contact details come from Setup ▸ Branding (admin only) — never from the plan. */
+function coWeb(){ return (BRAND&&BRAND.website)||"www.wallet4wealth.com"; }
+function coMail(){ return (BRAND&&BRAND.email)||"support@wallet4wealth.com"; }
+function coPhone(){ return (BRAND&&BRAND.phone)||"+91-9124655100"; }
+function coLine(){ return `${coWeb()} &nbsp;|&nbsp; ${coMail()} &nbsp;|&nbsp; ${coPhone()}`; }
+function pfoot(){ return `<div class="pfoot"><span class="en">${coLine()}</span> &nbsp;·&nbsp; ${t("foot_note")}</div>`; }
 function pbar(){ const lg=(BRAND&&BRAND.logo)?`<img src="${BRAND.logo}" style="max-height:34px;max-width:240px;">`:`<span class="w4w">wallet<b>4wealth</b></span>`; const tag=(BRAND&&BRAND.logo)?"":`<span class="tg">Delivering Prosperity</span>`; return `<div class="pbar">${lg}${tag}</div>`; }
 /* ===========================================================================
    REPORT LANGUAGE PACK  —  English / हिंदी / ଓଡ଼ିଆ
@@ -1695,6 +1730,9 @@ let RLANG="en";
 function setReportLang(lang){ RLANG=(lang==="hi"||lang==="or")?lang:"en"; }
 function langName(l){ return l==="hi"?"हिंदी":(l==="or"?"ଓଡ଼ିଆ":"English"); }
 const LABELS={
+  r_yearlyspread:{en:"Yearly expenses (spread per month)",hi:"सालाना खर्च (हर महीने के हिसाब से)",or:"ବାର୍ଷିକ ଖର୍ଚ୍ଚ (ମାସିକ ହିସାବରେ)"},
+  r_emi:{en:"Loan EMI",hi:"Loan EMI",or:"Loan EMI"},
+  r_totalout:{en:"Total money going out every month",hi:"हर महीने कुल Outflow",or:"ପ୍ରତିମାସ ମୋଟ Outflow"},
   foot_note:{en:"For general awareness only. Mutual fund investments are subject to market risks.",
     hi:"केवल सामान्य जानकारी के लिए। Mutual fund निवेश बाज़ार risk के अधीन हैं।",
     or:"କେବଳ ସାଧାରଣ ସୂଚନା ପାଇଁ। Mutual fund ନିବେଶ ବଜାର ରିସ୍କ ଅଧୀନ।"},
@@ -1829,7 +1867,7 @@ const LABELS={
   s_family:{en:"Family",hi:"परिवार",or:"ପରିବାର"},
   s_inflow:{en:"Money coming in",hi:"Income (आने वाला पैसा)",or:"Income (ଆସୁଥିବା ଟଙ୍କା)"},
   s_outflow:{en:"Money going out",hi:"Expense (जाने वाला पैसा)",or:"Expense (ଯାଉଥିବା ଟଙ୍କା)"},
-  s_inflow_chart:{en:"Where your money comes from",hi:"आपका पैसा कहाँ से आता है",or:"ଆପଣଙ୍କ ଟଙ୍କା କେଉଁଠୁ ଆସେ"},
+  s_inflow_chart:{en:"Where your money comes from (per year)",hi:"आपका पैसा कहाँ से आता है (सालाना)",or:"ଆପଣଙ୍କ ଟଙ୍କା କେଉଁଠୁ ଆସେ (ବାର୍ଷିକ)"},
   s_outflow_chart:{en:"Where your money goes (per year)",hi:"आपका पैसा कहाँ जाता है (सालाना)",or:"ଆପଣଙ୍କ ଟଙ୍କା କେଉଁଠି ଯାଏ (ବାର୍ଷିକ)"},
   s_alloc_now:{en:"How your savings are spread today",hi:"आज आपकी बचत कैसे बँटी है",or:"ଆଜି ଆପଣଙ୍କ ସଞ୍ଚୟ କିପରି ବଣ୍ଟା ଯାଇଛି"},
   s_spread:{en:"How your money is spread out",hi:"आपका Portfolio कैसे बँटा है",or:"ଆପଣଙ୍କ Portfolio କିପରି ବଣ୍ଟା ଯାଇଛି"},
@@ -2005,6 +2043,9 @@ function t(key,vars){
 /* wrap data that must always render in English (fund names, amounts, links) */
 function en(v){ return `<span class="en">${v}</span>`; }
 
+/* Subtle continuation marker. Always English ("continued") in every language,
+   placed bottom-right above the footer instead of in the heading. */
+function contMark(on){ return on?`<div class="contmark">continued</div>`:""; }
 function page(inner,cover){ return `<section class="${cover?"":"pgsec"}">${cover?"":pbar()}<div class="${cover?"pcover":"pbody"}">${inner}</div>${cover?"":pfoot()}</section>`; }
 
 /* Split a long table across branded A4 pages so nothing overflows.
@@ -2015,16 +2056,16 @@ function page(inner,cover){ return `<section class="${cover?"":"pgsec"}">${cover
 function tablePages(title, intro, headHtml, rowsArr, opts){
   const out=[], PB=`<div class="pbreak"></div>`;
   const combineMax=(opts.combineMax!=null)?opts.combineMax:6, perPage=(opts.perPage!=null)?opts.perPage:15, summary=opts.summary||"";
-  const tbl=(rows,ttl,intr)=>PB+page(`<h2>${ttl}</h2>${intr||""}<table class="data"><thead>${headHtml}</thead><tbody>${rows}</tbody></table>`);
+  const tbl=(rows,ttl,intr,cont)=>PB+page(`<h2>${ttl}</h2>${contMark(cont)}${intr||""}<table class="data"><thead>${headHtml}</thead><tbody>${rows}</tbody></table>`);
   if(rowsArr.length<=combineMax){
     out.push(PB+page(`<h2>${title}</h2>${intro||""}<table class="data"><thead>${headHtml}</thead><tbody>${rowsArr.join("")}</tbody></table>${summary}`));
     return out;
   }
   for(let i=0;i<rowsArr.length;i+=perPage){
     const first=i===0;
-    out.push(tbl(rowsArr.slice(i,i+perPage).join(""), title+(first?"":" (continued)"), first?intro:""));
+    out.push(tbl(rowsArr.slice(i,i+perPage).join(""), title, first?intro:"", !first));
   }
-  if(summary.trim()) out.push(PB+page(`<h2>${title} (continued)</h2>${summary}`));
+  if(summary.trim()) out.push(PB+page(`<h2>${title}</h2>${contMark(true)}${summary}`));
   return out;
 }
 
@@ -2037,7 +2078,9 @@ function buildFullReport(p){
   const age=ageFromDob(p.dob);
   // charts
   const expCats=groupSum(p.expenses.map(e=>({head:e.head,amt:(e.frequency==="Yearly"?Number(e.amount)||0:(Number(e.amount)||0)*(e.frequency==="Monthly"?12:0))})),"head","amt");
-  const incCatsChart=groupSum(p.income,"head","amount");
+  // Inflow chart must use the SAME basis as the outflow chart (per year),
+  // otherwise a one-time PF/gratuity swamps the pie and the two can't be compared.
+  const incCatsChart=groupSum(p.income.map(r=>({head:r.head,amt:(r.frequency==="Yearly"?Number(r.amount)||0:(Number(r.amount)||0)*(r.frequency==="Monthly"?12:0))})),"head","amt");
   const savCats={}; p.savings.forEach(s=>{ const c=SAV_CAT[s.head]||"Others"; savCats[c]=(savCats[c]||0)+(Number(s.amount)||0); });
   const savCatArr=Object.entries(savCats).map(([label,value])=>({label,value}));
   const retIncome=groupSum(p.retirement,"scheme","monthlyIncome");
@@ -2083,7 +2126,7 @@ function buildFullReport(p){
     <h1>${isRet?t("cover_ret_h1"):t("cover_grw_h1")}</h1>
     <div class="who">${escapeHtml(p.clientName||"—")}</div>
     <p class="kv" style="max-width:560px;margin-top:30px;font-size:11px;">${t("cov_disc")}</p>
-    <p class="kv" style="margin-top:20px;">www.wallet4wealth.com | support@wallet4wealth.com | +91-9124655100</p>
+    <p class="kv en" style="margin-top:20px;">${coLine()}</p>
     <p class="kv" style="margin-top:6px;">${t("prepared_by")} ${en(escapeHtml(p.rmName||"Wallet4Wealth"))}${p.rmMobile?` · ${escapeHtml(p.rmMobile)}`:""} &nbsp;·&nbsp; ${new Date().toLocaleDateString("en-IN")}</p>`, true));
 
   // 2 what/why
@@ -2115,7 +2158,7 @@ function buildFullReport(p){
     <div style="flex:1;min-width:300px;">
       <div style="font-size:23px;font-weight:800;color:#0F2C60;">${escapeHtml(p.clientName)}</div>
       <p style="font-size:15.5px;margin:10px 0 0;"><b>${t("l_age")}</b> ${en(age||"—")} &nbsp;&nbsp; <b>${t("l_gender")}</b> ${escapeHtml(p.gender)} &nbsp;&nbsp; <b>${t("l_marital")}</b> ${escapeHtml(p.marital)}</p>
-      <p style="font-size:15.5px;margin:8px 0 0;"><b>${t("l_mobile")}</b> ${en(escapeHtml(p.mobile)||"—")} &nbsp;&nbsp; <b>${t("l_city")}</b> ${en(escapeHtml(p.city)||"—")} &nbsp;&nbsp; <b>${t("l_branch")}</b> ${en(escapeHtml(p.branch)||"—")}</p>
+      <p style="font-size:15.5px;margin:8px 0 0;"><b>${t("l_mobile")}</b> ${en(escapeHtml(p.mobile)||"—")} &nbsp;&nbsp; <b>${t("l_city")}</b> ${en(escapeHtml(p.city)||"—")}</p>
       <p style="font-size:15.5px;margin:8px 0 0;"><b>${t("l_risk")}</b> <span style="color:#E8551F;font-weight:800;font-size:17px;">${escapeHtml(p.riskProfile)}</span></p>
     </div></div>`;
   const famClose=`${photoDraft.familyPhoto?`<div style="margin-top:10px;"><img src="${photoDraft.familyPhoto}" class="pdfimg" style="max-height:135px;"></div>`:""}
@@ -2129,7 +2172,7 @@ function buildFullReport(p){
       <h3>${t("s_family")}</h3><table class="data"><thead>${famHead}</thead><tbody>${famRowsArr.slice(0,FAM_FIRST).join("")}</tbody></table>`));
     for(let i=FAM_FIRST;i<famRowsArr.length;i+=FAM_NEXT){
       const last=i+FAM_NEXT>=famRowsArr.length;
-      pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_personal")} ${t("continued")}</h2>
+      pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_personal")}</h2>${contMark(true)}
         <h3>${t("s_family")}</h3><table class="data"><thead>${famHead}</thead><tbody>${famRowsArr.slice(i,i+FAM_NEXT).join("")}</tbody></table>${last?famClose:""}`));
     }
   }
@@ -2160,9 +2203,9 @@ function buildFullReport(p){
     } else {
       for(let i=0;i<maxLen;i+=IE_MAX){
         const first=i===0, last=i+IE_MAX>=maxLen;
-        pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_income")}${first?"":" "+t("continued")}</h2>${ieTables(i,i+IE_MAX,i,i+IE_MAX,last)}`));
+        pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_income")}</h2>${ieTables(i,i+IE_MAX,i,i+IE_MAX,last)}`));
       }
-      pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_income")} ${t("continued")}</h2>${ieCharts}`));
+      pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_income")}</h2>${contMark(true)}${ieCharts}`));
     }
   }
 
@@ -2176,54 +2219,69 @@ function buildFullReport(p){
       const assetSummary=`<p class="kv">${t("p_totalsav",{v:en(fmt(sav))})}</p>
         ${savCatArr.some(c=>c.value>0)?`<h3>${t("s_alloc_now")}</h3>${chartBlock(savCatArr)}<p class="kv">${t("p_catnote")}</p>`:""}
         ${!p.liabilities.length?`<p class="kv" style="color:#2E9E52;font-weight:600;margin-top:12px;">${t("p_nodebt")}</p>`:""}`;
-      tablePages(t("h_assets"),"",assetHead,savRows,{combineMax:6,perPage:13,summary:assetSummary}).forEach(pg=>pages.push(pg));
+      tablePages(t("h_assets"),"",assetHead,savRows,{combineMax:6,perPage:(RLANG==="en"?13:11),summary:assetSummary}).forEach(pg=>pages.push(pg));
     } else {
       pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_assets")}</h2>
         <p class="kv">${t("p_nosav")}</p>
         ${!p.liabilities.length?`<p class="kv" style="color:#2E9E52;font-weight:600;margin-top:12px;">${t("p_nodebt")}</p>`:""}`));
     }
-    if(p.liabilities.length){
-      const liaRowsArr=p.liabilities.map(l=>`<tr><td>${escapeHtml(l.head)}</td><td>${fmt(l.outstanding)}</td><td>${fmt(l.emi)}/${escapeHtml(l.frequency||"m")}</td><td>${escapeHtml(l.remarks)}</td></tr>`);
-      const liaHead=`<tr><th>${t("c_type")}</th><th>${t("c_outstanding")}</th><th>${t("c_emi")}</th><th>${t("c_remarks")}</th></tr>`;
-      const liaClose=`<p class="kv" style="margin-top:10px;">${t("p_netpos",{a:en(fmt(sav)),b:en(fmt(liaOut)),c:en(fmt(net))})}</p>`;
-      for(let i=0;i<liaRowsArr.length;i+=14){
-        const first=i===0, last=i+14>=liaRowsArr.length;
-        pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_liab")}${first?"":" "+t("continued")}</h2>
-          <table class="data"><thead>${liaHead}</thead><tbody>${liaRowsArr.slice(i,i+14).join("")}</tbody></table>${last?liaClose:""}`));
-      }
-    }
-    // Net worth analysis
     const nw=sav-liaOut, ratio=sav>0?Math.round(liaOut/sav*100):0;
     const nwChart=[{label:"Assets",value:sav},{label:"Liabilities",value:liaOut}];
-    pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_networth")}</h2>
-      <div class="chartrow" style="align-items:flex-start;">
+    const ratioNote=t("nw_ratio",{r:en(ratio)})+" "+(liaOut===0?t("nw_r_free"):ratio<40?t("nw_r_ok"):ratio<70?t("nw_r_mid"):t("nw_r_high"));
+    // Net-worth block (table + pie + note). The table already states assets − liabilities,
+    // so the old "net position" line under the liabilities table is dropped as a repeat.
+    const nwBlock=`<div class="chartrow" style="align-items:flex-start;">
         <div style="flex:1;min-width:300px;">
           <table class="data"><tbody>
             <tr><td>${t("nw_own")}</td><td style="text-align:right;"><b>${fmt(sav)}</b></td></tr>
             <tr><td>${t("nw_owe")}</td><td style="text-align:right;"><b>${fmt(liaOut)}</b></td></tr>
             <tr style="background:#eef2fa;"><td><b>${t("nw_net")}</b></td><td style="text-align:right;"><b style="color:${nw>=0?"#2E9E52":"#C0392B"};font-size:16px;">${fmt(nw)}</b></td></tr>
           </tbody></table>
-          <p class="kv" style="margin-top:10px;">Loans as a share of what you own: <b>${ratio}%</b>. ${liaOut===0?"You have no loans at all — a very strong position to be in.":ratio<40?"This is a comfortable level of loan — nothing to worry about.":ratio<70?"Your loans are at a middling level. Where you can, pay off the costliest loan first.":"Your loans are high compared with what you own. Bringing them down should come first, alongside investing."}</p>
+          <p class="kv" style="margin-top:10px;">${ratioNote}</p>
         </div>
         ${sav+liaOut>0?`<div>${chartBlock(nwChart)}</div>`:""}
       </div>
-      <p class="kv">${t("nw_note")}</p>`));
+      <p class="kv">${t("nw_note")}</p>`;
+    const liaHead=`<tr><th>${t("c_type")}</th><th>${t("c_outstanding")}</th><th>${t("c_emi")}</th><th>${t("c_remarks")}</th></tr>`;
+    const liaRowsArr=p.liabilities.map(l=>`<tr><td>${escapeHtml(l.head)}</td><td>${fmt(l.outstanding)}</td><td>${fmt(l.emi)}/${escapeHtml(l.frequency||"m")}</td><td>${escapeHtml(l.remarks)}</td></tr>`);
+    const LIA_SHARE=6;   // few enough loans -> share one page with Net Worth
+    if(liaRowsArr.length && liaRowsArr.length<=LIA_SHARE){
+      pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_liab")} &amp; ${t("h_networth")}</h2>
+        <table class="data"><thead>${liaHead}</thead><tbody>${liaRowsArr.join("")}</tbody></table>
+        ${nwBlock}`));
+    } else if(liaRowsArr.length){
+      for(let i=0;i<liaRowsArr.length;i+=14){
+        const first=i===0;
+        pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_liab")}</h2>${contMark(!first)}
+          <table class="data"><thead>${liaHead}</thead><tbody>${liaRowsArr.slice(i,i+14).join("")}</tbody></table>`));
+      }
+      pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_networth")}</h2>${nwBlock}`));
+    } else {
+      pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_networth")}</h2>${nwBlock}`));
+    }
   }
 
   // 7 goals + fund allocation — packed by estimated height so a page never overflows A4.
   // Calibrated in-browser: card height ≈ 167 + 35*funds (+28 margin). Budget: 548 first page (has intro), 590 after.
   {
-    const BUDGET_FIRST=548, BUDGET_NEXT=590;
-    const costOf=g=>236+35*Math.max(1,((g.funds||[]).filter(f=>f.fundName||f.amount).length||1))+28;
+    const BUDGET_FIRST=575, BUDGET_NEXT=600;
+    const fundsOf=g=>Math.max(1,((g.funds||[]).filter(f=>f.fundName||f.amount).length||1));
+    const costOf=g=>236+35*fundsOf(g)+14;   // 14 = collapsed margin between adjacent cards
+    // Aim for at least TWO goals per page. A goal only gets a page to itself when it
+    // carries so many funds that pairing it would overflow the A4 box.
+    const MIN_PER_PAGE=2;
     const groups=[]; let cur=[], used=0;
     goalCards.forEach((card,idx)=>{
-      const c=costOf(p.goals[idx]||{}), budget=groups.length===0?BUDGET_FIRST:BUDGET_NEXT;
-      if(cur.length && used+c>budget){ groups.push(cur); cur=[]; used=0; }
+      const g=p.goals[idx]||{}, c=costOf(g), budget=groups.length===0?BUDGET_FIRST:BUDGET_NEXT;
+      const wouldOverflow = cur.length && used+c>budget;
+      // keep filling while we are still under the minimum AND the card can physically fit
+      const underMin = cur.length>0 && cur.length<MIN_PER_PAGE && (used+c)<=BUDGET_NEXT;
+      if(wouldOverflow && !underMin){ groups.push(cur); cur=[]; used=0; }
       cur.push(card); used+=c;
     });
     if(cur.length) groups.push(cur);
     groups.forEach((grp,gi)=>{
-      const gtitle=gi===0?t("h_goals"):t("h_goals")+" "+t("continued");
+      const gtitle=t("h_goals");
       const gintro=gi===0?`<p class="kv">${t("g_intro")}</p>`:"";
       pages.push(`<div class="pbreak"></div>`+page(`<h2>${gtitle}</h2>${gintro}${grp.join("")}`));
     });
@@ -2241,13 +2299,24 @@ function buildFullReport(p){
     const swpRowsArr=(p.swpFunds||[]).map(f=>`<tr><td>${escapeHtml((f.company+" "+f.fundName).trim())}</td><td>${fmt(f.amount)}</td></tr>`);
     const retIncCount=retIncome.filter(r=>r.value>0).length;
     const mixBlock=retIncCount?`<h3>${t("s_incmix")}</h3>${chartBlock(retIncome)}`:"";
-    const bigMix=retIncCount>8;   // long legend needs its own page
+    const bigMix=retIncCount>0;   // chart always gets its own page now that cashflow is longer
+    // Full monthly outflow: monthly expenses + yearly expenses spread over 12 + loan EMIs.
+    // Previously only exp.month was shown, so insurance premiums and EMIs were missing.
+    const yearlyPerMonth=Math.round(((exp.yearTotal||0)-(exp.month||0)*12)/12);
+    const emiPerMonth=(p.liabilities||[]).reduce((sum,l)=>{
+      const e=Number(l.emi)||0, f=(l.frequency||"m").toLowerCase();
+      return sum + (f.indexOf("y")===0?e/12:f.indexOf("q")===0?e/3:e);
+    },0);
+    const totalOut=Math.round((exp.month||0)+Math.max(0,yearlyPerMonth)+emiPerMonth);
     const cashflowBlock=`${bigMix?"":mixBlock}
       <h3>${t("s_cashflow")}</h3>
       <table class="data"><thead><tr><th>${t("c_item")}</th><th>${t("c_monthly_rs")}</th></tr></thead><tbody>
         <tr><td>${t("r_planned")}</td><td>${fmt(retMonthly)}</td></tr>
         <tr><td>${t("r_living")}</td><td>${fmt(exp.month)}</td></tr>
-        <tr><td><b>${retMonthly-exp.month>=0?t("r_surplus"):t("r_gap")}</b></td><td><b>${fmt(retMonthly-exp.month)}</b></td></tr>
+        ${yearlyPerMonth>0?`<tr><td>${t("r_yearlyspread")}</td><td>${fmt(yearlyPerMonth)}</td></tr>`:""}
+        ${emiPerMonth>0?`<tr><td>${t("r_emi")}</td><td>${fmt(emiPerMonth)}</td></tr>`:""}
+        <tr><td><b>${t("r_totalout")}</b></td><td><b>${fmt(totalOut)}</b></td></tr>
+        <tr style="background:#eef2fa;"><td><b>${retMonthly-totalOut>=0?t("r_surplus"):t("r_gap")}</b></td><td><b>${fmt(retMonthly-totalOut)}</b></td></tr>
       </tbody></table>
       <p class="kv">${t("r_note")}</p>`;
 
@@ -2255,31 +2324,31 @@ function buildFullReport(p){
     if(retRows.length<=8 && swpRowsArr.length<=6){
       // compact client — schemes + SWP share one page, cashflow (chart + table) gets the next
       pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT}</h2>${retIntro}
-        ${retRows.length?`<table class="data"><thead>${retHead}</thead><tbody>${retRows.join("")}</tbody></table>`:""}
-        ${swpBlock}`));
-      if(bigMix) pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT} ${t("continued")}</h2>${mixBlock}`));
-      pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT} ${t("continued")}</h2>${cashflowBlock}`));
+        ${retRows.length?`<table class="data"><thead>${retHead}</thead><tbody>${retRows.join("")}</tbody></table>`:""}`));
+      if(swpBlock.trim()) pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT}</h2>${contMark(true)}${swpBlock}`));
+      if(bigMix) pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT}</h2>${contMark(true)}${mixBlock}`));
+      pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT}</h2>${contMark(true)}${cashflowBlock}`));
     } else {
       // Page A: intro + income-source table (paginated 12/page)
       if(retRows.length){
-        for(let i=0;i<retRows.length;i+=10){
+        for(let i=0;i<retRows.length;i+=(RLANG==="en"?10:9)){
           const first=i===0;
-          pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT}${first?"":" "+t("continued")}</h2>
+          pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT}</h2>${contMark(!first)}
             ${first?retIntro:""}
-            <table class="data"><thead>${retHead}</thead><tbody>${retRows.slice(i,i+10).join("")}</tbody></table>`));
+            <table class="data"><thead>${retHead}</thead><tbody>${retRows.slice(i,i+(RLANG==="en"?10:9)).join("")}</tbody></table>`));
         }
       } else {
         pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT}</h2>${retIntro}`));
       }
       // Page B: SWP / income fund allocation (paginated 15/page)
-      for(let i=0;i<swpRowsArr.length;i+=12){
-        pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT} ${t("continued")}</h2>
+      for(let i=0;i<swpRowsArr.length;i+=(RLANG==="en"?12:10)){
+        pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT}</h2>${contMark(true)}
           <h3>${t("s_swpfunds")}</h3>
-          <table class="data"><thead><tr><th>${t("c_fund")}</th><th>${t("c_amount")}</th></tr></thead><tbody>${swpRowsArr.slice(i,i+12).join("")}</tbody></table>`));
+          <table class="data"><thead><tr><th>${t("c_fund")}</th><th>${t("c_amount")}</th></tr></thead><tbody>${swpRowsArr.slice(i,i+(RLANG==="en"?12:10)).join("")}</tbody></table>`));
       }
       // Page C: income mix chart (own page if legend long) + monthly cashflow + closing
-      if(bigMix) pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT} ${t("continued")}</h2>${mixBlock}`));
-      pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT} ${t("continued")}</h2>${cashflowBlock}`));
+      if(bigMix) pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT}</h2>${contMark(true)}${mixBlock}`));
+      pages.push(`<div class="pbreak"></div>`+page(`<h2>${RT}</h2>${contMark(true)}${cashflowBlock}`));
     }
     }
   } else {
@@ -2321,7 +2390,7 @@ function buildFullReport(p){
       ${surplusOnce>0?`<p class="kv" style="color:#2E9E52;font-weight:600;">${t("rp_surplus",{once:en(fmt(inc.once)),left:en(fmt(surplusOnce))})}</p>`:""}
       ${catArr.some(c=>c.value>0)?`<h3>${t("s_spread")}</h3>${chartBlock(catArr)}<p class="kv">${t("rp_mixnote")}</p>`:""}
       ${goalNeed>0?`<p class="kv">${t("rp_goalcheck",{need:en(fmt(goalNeed)),have:en(fmt(goalWillHave))})}${goalWillHave>=goalNeed*0.99?t("rp_enough"):t("rp_gap",{gap:en(fmt(Math.max(0,goalNeed-goalWillHave)))})}</p>`:""}`;
-    tablePages(t("h_reco"),recIntro,recHead,fundRowsArr,{combineMax:0,perPage:13,summary:recSummary}).forEach(pg=>pages.push(pg));
+    tablePages(t("h_reco"),recIntro,recHead,fundRowsArr,{combineMax:0,perPage:(RLANG==="en"?13:11),summary:recSummary}).forEach(pg=>pages.push(pg));
   }
 
   // 9 protection
@@ -2339,17 +2408,17 @@ function buildFullReport(p){
     } else {
       let firstPage=true;
       for(let i=0;i<insRowsArr.length;i+=12){
-        pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_protect")}${firstPage?"":" "+t("continued")}</h2>
+        pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_protect")}</h2>
           <h3>${t("s_policies")}</h3><table class="data"><thead>${insHead}</thead><tbody>${insRowsArr.slice(i,i+12).join("")}</tbody></table>`));
         firstPage=false;
       }
       for(let i=0;i<protRowsArr.length;i+=12){
         const last=i+12>=protRowsArr.length;
-        pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_protect")}${firstPage?"":" "+t("continued")}</h2>
+        pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_protect")}</h2>
           <h3>${t("s_reccover")}</h3><table class="data"><thead>${protHead}</thead><tbody>${protRowsArr.slice(i,i+12).join("")}</tbody></table>${last?protClose:""}`));
         firstPage=false;
       }
-      if(!protRowsArr.length) pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_protect")} ${t("continued")}</h2>${protClose}`));
+      if(!protRowsArr.length) pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_protect")}</h2>${contMark(true)}${protClose}`));
     }
   }
 
@@ -2361,9 +2430,8 @@ function buildFullReport(p){
   // 11 product knowledge
   const pkItems=[...PK_MF, ...(isRet?PK_RET:PK_GROWTH)].map(([n,k])=>`<div class="pk"><b class="en">${n}</b> — ${t(k)}</div>`);
   for(let pi=0; pi<pkItems.length; pi+=8){
-    const ptitle=pi===0?"Understanding Your Options":"Understanding Your Options (continued)";
     const pintro=pi===0?`<p class="kv">${t("pk_mfcore")} ${isRet?t("pk_intro_ret"):t("pk_intro_growth")}</p>`:"";
-    pages.push(`<div class="pbreak"></div>`+page(`<h2>${ptitle}</h2>${pintro}<div class="pkgrid">${pkItems.slice(pi,pi+8).join("")}</div>`));
+    pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_options")}</h2>${contMark(pi>0)}${pintro}<div class="pkgrid">${pkItems.slice(pi,pi+8).join("")}</div>`));
   }
 
   // 12 services + thank you  (split across two pages when the text is longer, e.g. Hindi/Odia)
@@ -2380,7 +2448,7 @@ function buildFullReport(p){
       const items=[
         A("https://"+web,"🌐 "+web),
         A("mailto:support@wallet4wealth.com","✉️ support@wallet4wealth.com"),
-        A("tel:+919124655100","📞 +91-9124655100")
+        A("tel:"+coPhone().replace(/[^0-9+]/g,""),"📞 "+coPhone())
       ];
       if(BRAND.whatsapp) items.push(A("https://wa.me/"+String(BRAND.whatsapp).replace(/[^0-9]/g,""),"💬 WhatsApp"));
       if(BRAND.youtube)  items.push(A(/^https?:/.test(BRAND.youtube)?BRAND.youtube:"https://"+BRAND.youtube,"▶️ YouTube"));
@@ -2403,7 +2471,7 @@ function buildCompanyIntro(){
   pages.push(page(`${(BRAND&&BRAND.logo)?`<img src="${BRAND.logo}" style="max-height:120px;margin-bottom:8px;">`:`<div class="lg">wallet<b>4wealth</b></div><div class="subt">Delivering Prosperity</div>`}
     <div class="subt" style="color:#E8551F;font-size:22px;margin-top:24px;">Company Profile &amp; Services</div>
     <h1 style="margin-top:22px;">Securing Your Financial Future</h1>
-    <p class="kv" style="margin-top:20px;">www.wallet4wealth.com | support@wallet4wealth.com | +91-9124655100</p>`, true));
+    <p class="kv en" style="margin-top:20px;">${coLine()}</p>`, true));
 
   pages.push(`<div class="pbreak"></div>`+page(`<h2>${t("h_leader")}</h2>
     <div class="chartrow" style="align-items:flex-start;">
@@ -2459,7 +2527,7 @@ function buildCompanyIntro(){
   pages.push(`<div class="pbreak"></div>`+page(`<h2>Thank You</h2>
     <p style="font-size:15.5px;">Team Wallet4Wealth — always at your service. Let's build your financial future together.</p>
     ${BRAND.team?`<div style="margin-top:12px;"><img src="${BRAND.team}" class="pdfimg" style="max-height:240px;"></div>`:""}
-    <p class="kv" style="margin-top:12px;">www.wallet4wealth.com | support@wallet4wealth.com | +91-9124655100</p>`));
+    <p class="kv en" style="margin-top:12px;">${coLine()}</p>`));
 
   return `<div class="pdfdoc lang-${RLANG}">${pages.join("")}</div>`;
 }

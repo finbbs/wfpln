@@ -84,9 +84,12 @@
   .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:18px;}
   .panel h3{margin:0 0 4px;color:var(--forest);font-size:16px;}
   .panel .sub{font-size:12.5px;color:var(--muted);margin:0 0 16px;}
-  .tablink{display:inline-flex;align-items:center;text-decoration:none;font:inherit;
-    padding:8px 14px;border-radius:8px;color:#0F2C60;border:1px solid transparent;}
-  .tablink:hover{background:#eef2fa;}
+  /* Sits in the dark navy tab bar, so it must match nav.tabs button colours
+     (it was dark-on-dark and therefore invisible). */
+  nav.tabs a.tablink{display:inline-flex;align-items:center;text-decoration:none;
+    font:inherit;font-size:13px;font-weight:600;color:#cfe0d6;background:transparent;
+    border:none;border-bottom:2px solid transparent;padding:6px 4px;cursor:pointer;}
+  nav.tabs a.tablink:hover{color:#fff;border-bottom-color:var(--gold);background:transparent;}
   .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
   .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
   @media(max-width:640px){.grid2,.grid3{grid-template-columns:1fr;}}
@@ -322,7 +325,7 @@
     <div class="brand"><span class="w4w">wallet<b>4wealth</b></span><span class="tag">Delivering Prosperity</span></div>
     <nav class="tabs" id="tabs">
       <button data-view="dashView" class="active" onclick="switchTab('dashView')">Plans</button>
-      <a class="tablink" href="calculator.html" target="_blank" rel="noopener">Calculators ↗</a>
+      <a class="tablink" id="calcLink" href="https://wallet4wealth.com/retirement-calculator/" target="_blank" rel="noopener">Calculators ↗</a>
       <button data-view="adminView" id="adminTab" class="hidden" onclick="switchTab('adminView')">Setup</button>
     </nav>
     <div class="userbox">
@@ -357,7 +360,8 @@
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <input id="planSearch" placeholder="Search name or mobile" oninput="renderPlans()" style="width:190px;padding:8px 10px;">
           <button class="btn ghost small" id="viewToggle" onclick="toggleDashView()">List view</button>
-          <button class="btn ghost small" onclick="presentIntro()">▶ Company intro</button>
+          <label class="btn ghost small bulkOnly hidden" id="btnBulkImport" style="margin:0;cursor:pointer;" title="Admin only — load many clients at once from a single seminar sheet">⭱⭱ Import bulk<input type="file" accept=".xlsx,.xls" onchange="importBulkExcel(this)" style="display:none;"></label>
+          <button class="btn ghost small bulkOnly hidden" id="btnBulkTemplate" onclick="downloadBulkTemplate()" title="Admin only — one row per client, for seminars or a Google Form">⭳ Bulk template</button>
           <button class="btn gold" onclick="newPlan()">+ New plan</button>
         </div>
       </div>
@@ -547,7 +551,7 @@
           <div><label>PAN</label><input id="pan" placeholder="ABCDE1234F"></div>
           <div><label>Mobile</label><input id="mobile"></div>
           <div><label>Email</label><input id="email" type="email"></div>
-          <div><label>Branch</label><select id="branch"></select></div>
+          <div><label>Branch</label><select id="branch"></select><div id="branchNote" class="muted" style="font-size:11.5px;margin-top:3px;display:none;">Only an admin can change the branch.</div></div>
           <div><label>Plan type</label><select id="planType" onchange="applyPlanTypeUI()"><option>Pre-retirement growth</option><option>Post-retirement income</option></select></div>
           <div><label>Risk profile</label><select id="riskProfile"><option>Low</option><option>Moderate</option><option>High</option><option>Very High</option></select></div>
           <div><label>Report language <span class="muted" style="font-weight:400;">(headings &amp; notes only)</span></label>
@@ -700,6 +704,19 @@
   <button class="btn ghost small" style="margin-top:14px;width:100%;" onclick="$('restoreModal').classList.add('hidden');pendingBackup=null;">Cancel</button>
 </div></div>
 
+<div id="bulkModal" class="pdfover hidden"><div class="box" style="max-width:760px;">
+  <div style="font-weight:800;color:#0F2C60;font-size:18px;margin-bottom:4px;">Bulk import — check before creating</div>
+  <p class="muted" style="font-size:13px;margin:0 0 10px;">Nothing is saved until you press Create. Rows are matched to a branch by name, so each branch's team sees their own clients straight away.</p>
+  <div id="bulkSummary" style="font-size:13.5px;margin-bottom:10px;"></div>
+  <div id="bulkTable" style="max-height:330px;overflow:auto;border:1px solid var(--line);border-radius:8px;"></div>
+  <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;">
+    <input type="checkbox" id="bulkSkipDup" style="width:auto;"> Skip rows whose mobile number already exists
+  </label>
+  <div style="display:flex;gap:10px;margin-top:14px;">
+    <button class="btn" id="bulkGo" style="flex:1;" onclick="bulkCreate()">Create plans</button>
+    <button class="btn ghost" style="flex:1;" onclick="$('bulkModal').classList.add('hidden');bulkPending=null;">Cancel</button>
+  </div>
+</div></div>
 <div id="excelModal" class="pdfover hidden"><div class="box" style="max-width:520px;">
   <div style="font-weight:800;color:#0F2C60;font-size:18px;margin-bottom:4px;">Client input sheet</div>
   <p class="muted" style="font-size:13px;margin:0 0 16px;">Send the questions to the client and take their answers back. Advisor details, return assumptions and fund allocations are never part of the file.</p>
@@ -708,7 +725,8 @@
     <button class="btn" style="flex:1 1 140px;" onclick="inputPdfFromBox()">PDF<br><span style="font-weight:400;font-size:12px;">print &amp; fill by hand</span></button>
     <label class="btn gold" style="flex:1 1 140px;margin:0;text-align:center;cursor:pointer;">Upload<br><span style="font-weight:400;font-size:12px;">their edited Excel</span><input type="file" accept=".xlsx,.xls" onchange="excelImportFromBox(this)" style="display:none;"></label>
   </div>
-  <button class="btn ghost small" style="margin-top:14px;width:100%;" onclick="$('excelModal').classList.add('hidden')">Cancel</button>
+  <button class="btn ghost small" style="margin-top:10px;width:100%;" onclick="$('excelModal').classList.add('hidden');downloadBlankExcel();">⭳ Blank Excel (for a brand-new client)</button>
+  <button class="btn ghost small" style="margin-top:8px;width:100%;" onclick="$('excelModal').classList.add('hidden')">Cancel</button>
 </div></div>
 
 <div id="planTypeModal" class="pdfover hidden"><div class="box" style="max-width:430px;">
@@ -724,10 +742,11 @@
 <div id="planModeModal" class="pdfover hidden"><div class="box" style="max-width:450px;">
   <div style="font-weight:800;color:#0F2C60;font-size:18px;margin-bottom:4px;">How will you run this?</div>
   <p class="muted" style="font-size:13px;margin:0 0 16px;">Choose how you'll work with the client this time.</p>
-  <div style="display:flex;gap:10px;">
-    <button class="btn" style="flex:1;" onclick="startMode('guided')">Present to client<br><span style="font-weight:400;font-size:12px;">company intro, then inputs</span></button>
-    <button class="btn gold" style="flex:1;" onclick="startMode('quick')">Quick entry<br><span style="font-weight:400;font-size:12px;">just fill the data</span></button>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <button class="btn gold" style="flex:1 1 150px;" onclick="startMode('quick')">Type it in<br><span style="font-weight:400;font-size:12px;">fill the form yourself</span></button>
+    <label class="btn" style="flex:1 1 150px;margin:0;text-align:center;cursor:pointer;">Import Excel<br><span style="font-weight:400;font-size:12px;">client's filled-in file</span><input type="file" accept=".xlsx,.xls" onchange="startModeImport(this)" style="display:none;"></label>
   </div>
+  <button class="btn ghost small" style="margin-top:10px;width:100%;" onclick="$('planModeModal').classList.add('hidden');downloadBlankExcel();">⭳ Blank Excel to send a new client</button>
   <button class="btn ghost small" style="margin-top:14px;width:100%;" onclick="$('planModeModal').classList.add('hidden')">Cancel</button>
 </div></div>
 
@@ -796,6 +815,7 @@ function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");set
 function escapeHtml(s){return (""+(s==null?"":s)).replace(/[&<>"]/g,c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));}
 
 let currentUser=null, profile=null, currentPlanId=null, teamsMap={};
+let currentPlanTeamId=null;   // the branch/team the open plan belongs to
 let BRAND={}, brandDraft={}, photoDraft={};
 let DEFAULT_FUND_TYPE="SIP";
 let DEFAULT_INCOME_FREQ="Monthly";
@@ -1536,6 +1556,228 @@ function verifyOtpGate(){
 function showOnly(w){ ["loadingNotice","pendingNotice","otpGate","appMain"].forEach(x=>$(x).classList.add("hidden")); $(w).classList.remove("hidden"); }
 function showApp(){ showOnly("appMain"); switchTab("dashView"); applyAccessUI(); loadPlans(); loadBrand(); loadAssumptions(); loadFundMaster(); if(profile.role==="admin"){ loadUsers(); loadBackupInfo(); } }
 
+/* Calculators open on the public website, in a new tab. No login needed.
+   Change this one line if the page ever moves. */
+const CALC_URL="https://wallet4wealth.com/retirement-calculator/";
+document.addEventListener("DOMContentLoaded",function(){
+  const a=document.getElementById("calcLink"); if(a) a.href=CALC_URL;
+});
+
+
+/* ============================ BULK (SEMINAR) INTAKE =========================
+   One sheet, ONE ROW PER CLIENT. Used to collect many people at a seminar
+   (typed straight in, or exported from a Google Form) and load them in one go.
+   BULK_COLS is the single source of truth: the template and the importer are
+   both generated from it, so they can never drift apart.
+   Repeating sections are flattened to a fixed number of slots.            */
+const BULK_REPEAT={family:4,income:3,savings:3,expenses:3,liabilities:2,goals:3,insurance:2};
+function bulkCols(){
+  const c=[];
+  c.push({h:"Branch *",k:"branch",need:true,list:"branch"});
+  XL_CLIENT.forEach(([k,l])=>{
+    const need=(k==="firstName"||k==="mobile");   // mobile is required AND is the duplicate key
+    c.push({h:l+(need?" *":""),k:k,need:need,dup:(k==="mobile"),
+      list:(k==="gender"?"gender":k==="marital"?"marital":null),
+      num:(k==="retTargetIncome")});
+  });
+  const rep=(sec,cols,n,label)=>{
+    for(let i=1;i<=n;i++) cols.forEach(col=>c.push({
+      h:label+" "+i+" — "+col.label, sec:sec, idx:i-1, k:col.key,
+      num:(col.type==="number"),
+      list:(col.key==="frequency"?"freq":col.key==="relationship"?"rel":null)}));
+  };
+  rep("family",LISTS.family.cols,BULK_REPEAT.family,"Family");
+  rep("income",LISTS.income.cols,BULK_REPEAT.income,"Income");
+  rep("savings",LISTS.savings.cols,BULK_REPEAT.savings,"Savings");
+  rep("expenses",LISTS.expenses.cols,BULK_REPEAT.expenses,"Expense");
+  rep("liabilities",LISTS.liabilities.cols,BULK_REPEAT.liabilities,"Loan");
+  const gcols=XL_GOAL.map(([k,l])=>({key:k,label:l,type:(k==="presentCost"||k==="years"||k==="inflation")?"number":"text"}));
+  rep("goals",gcols,BULK_REPEAT.goals,"Goal");
+  rep("insurance",LISTS.insurance.cols,BULK_REPEAT.insurance,"Insurance");
+  c.push({h:"Notes",k:"remarks"});
+  return c;
+}
+function bulkLists(){
+  return {
+    branch:planBranchNames(),
+    gender:["Male","Female","Other"],
+    marital:["Single","Married","Widowed","Divorced"],
+    freq:["Monthly","Yearly","One-time"],
+    rel:["Spouse","Son","Daughter","Mother","Father","Other"]
+  };
+}
+async function downloadBulkTemplate(){
+  if(!isAdminUser()){ toast("Bulk intake is available to admins only."); return; }
+  if(typeof ExcelJS==="undefined"){ toast("Excel library didn't load — check your connection."); return; }
+  const cols=bulkCols(), lists=bulkLists();
+  const wb=new ExcelJS.Workbook(); wb.creator="Wallet4Wealth";
+  const ws=wb.addWorksheet("Clients");
+  const gd=wb.addWorksheet("Guide");
+  const lw=wb.addWorksheet("Lists"); lw.state="veryHidden";
+  /* dropdown sources */
+  const ranges={}; let li=1;
+  Object.entries(lists).forEach(([name,vals])=>{
+    vals.forEach((v,i)=>lw.getCell(i+1,li).value=v);
+    const L=lw.getColumn(li).letter;
+    ranges[name]="Lists!$"+L+"$1:$"+L+"$"+Math.max(vals.length,1);
+    li++;
+  });
+  /* header */
+  cols.forEach((c,i)=>{
+    const cell=ws.getCell(1,i+1); cell.value=c.h;
+    cell.font={bold:true,color:{argb:"FFFFFFFF"},size:10};
+    cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:c.need?"FFC0392B":"FF0F2C60"}};
+    cell.alignment={wrapText:true,vertical:"middle"};
+    ws.getColumn(i+1).width=Math.min(26,Math.max(13,c.h.length+2));
+  });
+  ws.views=[{state:"frozen",xSplit:1,ySplit:1}];
+  ws.getRow(1).height=32;
+  /* 200 blank rows, with dropdowns where they help */
+  for(let r=2;r<=201;r++) cols.forEach((c,i)=>{
+    const cell=ws.getCell(r,i+1);
+    cell.border={top:{style:"hair"},left:{style:"hair"},bottom:{style:"hair"},right:{style:"hair"}};
+    if(c.need) cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:"FFFFF3B0"}};
+    if(c.list && ranges[c.list]) cell.dataValidation={type:"list",allowBlank:true,formulae:[ranges[c.list]]};
+  });
+  /* guide */
+  const gl=[["Wallet4Wealth — bulk client intake",""],
+    ["","" ],
+    ["How to use","One ROW per client. Fill the Clients sheet, then upload it in the panel: Plans > Import bulk."],
+    ["Required (red header)","Branch, First name and Mobile. A row missing any of these is skipped."],
+    ["Branch","Must match a branch set up in the panel, otherwise the row cannot be mapped. Use the dropdown."],
+    ["Duplicates","Rows whose mobile already exists are flagged before anything is created — you choose."],
+    ["Blank cells","Fine. Leave anything unknown empty; it can be filled in later in the panel."],
+    ["Dates","Use YYYY-MM-DD (e.g. 1985-04-23)."],
+    ["Amounts","Numbers only — no ₹ sign, no commas."],
+    ["Google Form","Copy the header row of the Clients sheet as your question list, then paste responses back under it."],
+    ["",""],
+    ["Branches currently set up",lists.branch.join(", ")||"— none set up yet —"]];
+  gl.forEach((row,i)=>{ gd.getCell(i+1,1).value=row[0]; gd.getCell(i+1,2).value=row[1];
+    gd.getCell(i+1,1).font={bold:true,color:{argb:"FF0F2C60"}};
+    gd.getCell(i+1,2).alignment={wrapText:true}; });
+  gd.getColumn(1).width=30; gd.getColumn(2).width=95;
+  try{
+    const buf=await wb.xlsx.writeBuffer();
+    const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download="Wallet4Wealth_bulk_intake_template.xlsx";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+    toast("Bulk template downloaded.");
+  }catch(e){ toast("Couldn't build the template: "+e.message); }
+}
+/* ---- read the sheet, map to plans, preview before writing anything ---- */
+let bulkPending=null;
+function bulkParse(aoa){
+  const cols=bulkCols();
+  const head=(aoa[0]||[]).map(h=>String(h==null?"":h).trim());
+  const at={}; cols.forEach(c=>{ const i=head.indexOf(c.h); if(i>=0) at[c.h]=i; });
+  const missing=cols.filter(c=>c.need && at[c.h]==null).map(c=>c.h);
+  if(missing.length) return {error:"These required columns are missing from the sheet: "+missing.join(", ")};
+  const out=[];
+  for(let r=1;r<aoa.length;r++){
+    const row=aoa[r]||[]; const get=c=>{ const i=at[c.h]; return i==null?"":(row[i]==null?"":row[i]); };
+    const blank=cols.every(c=>String(get(c)).trim()==="");
+    if(blank) continue;
+    const p={family:[],income:[],savings:[],expenses:[],liabilities:[],goals:[],insurance:[],protection:[],growth:[],swpFunds:[],retirement:[]};
+    const buckets={};
+    cols.forEach(c=>{
+      let v=get(c); v=(typeof v==="string")?v.trim():v;
+      if(c.num) v=(v===""?"":Number(v)||0);
+      if(c.sec){
+        buckets[c.sec]=buckets[c.sec]||{};
+        buckets[c.sec][c.idx]=buckets[c.sec][c.idx]||{};
+        buckets[c.sec][c.idx][c.k]=v;
+      }else p[c.k]=v;
+    });
+    Object.entries(buckets).forEach(([sec,slots])=>{
+      p[sec]=Object.keys(slots).sort((a,b)=>a-b).map(i=>slots[i])
+        .filter(o=>Object.values(o).some(v=>v!=="" && v!=null && v!==0));
+    });
+    p.clientName=[p.firstName,p.lastName].filter(Boolean).join(" ");
+    const problems=[];
+    if(!String(p.firstName||"").trim()) problems.push("no first name");
+    if(!String(p.mobile||"").trim()) problems.push("no mobile");
+    const tid=teamIdForBranch(p.branch);
+    if(!tid) problems.push(p.branch?('branch "'+p.branch+'" not in Setup'):"no branch");
+    out.push({row:r+1,plan:p,teamId:tid,problems:problems});
+  }
+  return {rows:out};
+}
+function importBulkExcel(input){
+  if(!isAdminUser()){ toast("Bulk intake is available to admins only."); if(input) input.value=""; return; }
+  const f=input&&input.files&&input.files[0]; if(!f) return;
+  input.value="";
+  if(typeof XLSX==="undefined"){ toast("Excel library didn't load."); return; }
+  const rd=new FileReader();
+  rd.onload=e=>{
+    let aoa;
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+      const sheet=wb.Sheets["Clients"]||wb.Sheets[wb.SheetNames[0]];
+      aoa=XLSX.utils.sheet_to_json(sheet,{header:1,defval:""});
+    }catch(err){ toast("Couldn't read that file: "+err.message); return; }
+    const res=bulkParse(aoa);
+    if(res.error){ toast(res.error); return; }
+    if(!res.rows.length){ toast("No filled rows found in the sheet."); return; }
+    /* flag mobiles that already exist */
+    const seen={}; plansCache.forEach(x=>{ const m=String(x.data.mobile||"").replace(/\D/g,""); if(m) seen[m]=x.data.clientName||m; });
+    res.rows.forEach(r=>{
+      const m=String(r.plan.mobile||"").replace(/\D/g,"");
+      r.dup=(m&&seen[m])?seen[m]:null;
+    });
+    bulkPending=res.rows;
+    bulkShowPreview();
+  };
+  rd.readAsArrayBuffer(f);
+}
+function bulkShowPreview(){
+  const rows=bulkPending||[];
+  const ok=rows.filter(r=>!r.problems.length);
+  const bad=rows.filter(r=>r.problems.length);
+  const dups=ok.filter(r=>r.dup);
+  const body=rows.map(r=>{
+    const nm=r.plan.clientName||"—";
+    const st=r.problems.length?('<span style="color:#C0392B;">skip — '+escapeHtml(r.problems.join(", "))+'</span>')
+      :(r.dup?('<span style="color:#B7791F;">duplicate of '+escapeHtml(r.dup)+'</span>'):'<span style="color:#2E9E52;">ready</span>');
+    return `<tr><td>${r.row}</td><td>${escapeHtml(nm)}</td><td>${escapeHtml(r.plan.mobile||"—")}</td><td>${escapeHtml(r.plan.branch||"—")}</td><td>${st}</td></tr>`;
+  }).join("");
+  $("bulkSummary").innerHTML=
+    `<b>${ok.length}</b> ready to create · <b>${dups.length}</b> look like duplicates · <b>${bad.length}</b> will be skipped`;
+  $("bulkTable").innerHTML=`<table class="data" style="font-size:12.5px;"><thead><tr>
+      <th>Row</th><th>Name</th><th>Mobile</th><th>Branch</th><th>Status</th></tr></thead><tbody>${body}</tbody></table>`;
+  $("bulkSkipDup").checked=true;
+  $("bulkGo").disabled=!ok.length;
+  $("bulkModal").classList.remove("hidden");
+}
+function bulkCreate(){
+  if(!isAdminUser()){ toast("Bulk intake is available to admins only."); return; }
+  const skipDup=$("bulkSkipDup").checked;
+  const rows=(bulkPending||[]).filter(r=>!r.problems.length && (!skipDup || !r.dup));
+  if(!rows.length){ toast("Nothing to create."); return; }
+  $("bulkGo").disabled=true; $("bulkSummary").innerHTML="Creating "+rows.length+" plans…";
+  const batchWrite=r=>{
+    const data=Object.assign({},r.plan,{
+      teamId:r.teamId, ownerUid:currentUser.uid, ownerEmail:currentUser.email,
+      planType:"Pre-retirement growth", source:"bulk-intake",
+      rmName:(profile&&profile.name)||currentUser.email, rmMobile:(profile&&profile.mobile)||"",
+      rmEmail:(profile&&profile.email)||currentUser.email,
+      createdAt:SVR, updatedAt:SVR });
+    return db.collection("plans").add(data);
+  };
+  let done=0, failed=0;
+  const next=i=>{
+    if(i>=rows.length){
+      $("bulkModal").classList.add("hidden"); bulkPending=null;
+      toast(done+" plan"+(done===1?"":"s")+" created"+(failed?(", "+failed+" failed"):"."));
+      loadPlans(); return;
+    }
+    batchWrite(rows[i]).then(()=>done++).catch(()=>failed++)
+      .then(()=>{ $("bulkSummary").innerHTML="Creating… "+(i+1)+" of "+rows.length; next(i+1); });
+  };
+  next(0);
+}
+
 /* ---------- tabs / teams / admin ---------- */
 function switchTab(view){
   ["dashView","adminView","editorView","reportView"].forEach(v=>{ const el=$(v); if(el) el.classList.add("hidden"); });
@@ -1548,7 +1790,7 @@ function teamName(id){ return id?(teamsMap[id]||id):""; }
 function loadTeams(){ return db.collection("teams").get().then(s=>{ teamsMap={}; s.forEach(d=>teamsMap[d.id]=d.data().name); }).catch(()=>{teamsMap={};}); }
 function createTeam(){
   const name=$("newTeamName").value.trim(); if(!name){ toast("Enter a branch name."); return; }
-  db.collection("teams").add({name,createdAt:SVR}).then(()=>{ $("newTeamName").value=""; toast("Branch added."); return loadTeams(); }).then(()=>{ renderBranches(); fillBranchSelects(); loadUsers(); }).catch(e=>toast("Couldn't add branch: "+e.message));
+  db.collection("teams").add({name,createdAt:SVR}).then(()=>{ $("newTeamName").value=""; toast("Branch added."); return loadTeams(); }).then(()=>{ renderBranches(); fillBranchSelects(); fillPlanBranch(); loadUsers(); }).catch(e=>toast("Couldn't add branch: "+e.message));
 }
 function renderBranches(){
   const el=$("branchList"); if(!el) return;
@@ -1558,8 +1800,32 @@ function renderBranches(){
     <button class="btn ghost small" onclick="renameBranch('${id}')">Rename</button>
     <button class="btn danger small" onclick="deleteBranch('${id}')">✕</button></div>`).join("") : '<p class="muted">No branches yet.</p>';
 }
-function renameBranch(id){ const v=$("bn_"+id).value.trim(); if(!v) return; db.collection("teams").doc(id).update({name:v}).then(()=>{ toast("Renamed."); return loadTeams(); }).then(()=>{ renderBranches(); fillBranchSelects(); loadUsers(); }).catch(e=>toast(e.message)); }
-function deleteBranch(id){ if(!confirm("Delete this branch? People and plans already assigned to it keep the old link until you reassign them.")) return; db.collection("teams").doc(id).delete().then(()=>{ toast("Branch deleted."); return loadTeams(); }).then(()=>{ renderBranches(); fillBranchSelects(); loadUsers(); }).catch(e=>toast(e.message)); }
+function renameBranch(id){ const v=$("bn_"+id).value.trim(); if(!v) return; db.collection("teams").doc(id).update({name:v}).then(()=>{ toast("Renamed."); return loadTeams(); }).then(()=>{ renderBranches(); fillBranchSelects(); fillPlanBranch(); loadUsers(); }).catch(e=>toast(e.message)); }
+function deleteBranch(id){ if(!confirm("Delete this branch? People and plans already assigned to it keep the old link until you reassign them.")) return; db.collection("teams").doc(id).delete().then(()=>{ toast("Branch deleted."); return loadTeams(); }).then(()=>{ renderBranches(); fillBranchSelects(); fillPlanBranch(); loadUsers(); }).catch(e=>toast(e.message)); }
+/* The plan's Branch comes from the branches set up in Setup, not a fixed list.
+   Everyone sees it, but only an admin can change it — so an RM can't move a
+   client to another branch, while an admin still can. */
+function planBranchNames(){
+  const fromSetup=Object.values(teamsMap||{}).filter(Boolean);
+  return fromSetup.length?fromSetup.slice().sort((a,b)=>a.localeCompare(b)):BRANCHES.slice();
+}
+function fillPlanBranch(keep){
+  const sel=$("branch"); if(!sel) return;
+  const want=(keep!=null?keep:sel.value)||"";
+  const names=planBranchNames();
+  const opts=names.slice();
+  if(want && opts.indexOf(want)<0) opts.unshift(want);   // keep a legacy value visible
+  sel.innerHTML='<option value=""></option>'+opts.map(b=>`<option ${b===want?"selected":""}>${escapeHtml(b)}</option>`).join("");
+  applyBranchLock();
+}
+function applyBranchLock(){
+  const sel=$("branch"); if(!sel) return;
+  const admin=!!profile && profile.role==="admin";
+  sel.disabled=!admin;
+  sel.title=admin?"Admins can move a client to another branch":"Set by your branch — ask an admin to change it";
+  sel.style.background=admin?"":"#eef2fa";
+  const note=$("branchNote"); if(note) note.style.display=admin?"none":"";
+}
 function fillBranchSelects(){ const sel=$("empTeam"); if(sel) sel.innerHTML='<option value="">— unassigned —</option>'+Object.entries(teamsMap).map(([id,n])=>`<option value="${id}">${escapeHtml(n)}</option>`).join(""); }
 let secondaryApp=null;
 function addEmployee(){
@@ -1709,10 +1975,14 @@ function refreshOwnProfile(){
 /* ---------- access flags (admin-controlled) ---------- */
 function canPresent(){ return !!profile && (profile.role==="admin" || profile.canPresent!==false); }
 function canDownloadPdf(){ return !!profile && (profile.role==="admin" || profile.canDownloadPdf!==false); }
+function isAdminUser(){ return !!profile && profile.role==="admin"; }
 function applyAccessUI(){
+  /* Bulk intake creates plans across every branch at once, so it is admin-only. */
+  document.querySelectorAll(".bulkOnly").forEach(el=>el.classList.toggle("hidden",!isAdminUser()));
   const bp=$("btnPresent"), bd=$("btnPdf");
   if(bp) bp.classList.toggle("hidden",!canPresent());
   if(bd) bd.classList.toggle("hidden",!canDownloadPdf());
+  applyBranchLock();
 }
 function removeUser(uid,email){
   if(uid===(currentUser&&currentUser.uid)){ toast("You can't remove your own account here."); return; }
@@ -1785,7 +2055,15 @@ function getVal(id){ return $(id)?$(id).value:""; }
 let pendingPlanType="Pre-retirement growth";
 function newPlan(){ $("planTypeModal").classList.remove("hidden"); }
 function startPlan(pt){ pendingPlanType=pt; $("planTypeModal").classList.add("hidden"); $("planModeModal").classList.remove("hidden"); }
-function startMode(mode){ $("planModeModal").classList.add("hidden"); openEditor(null,pendingPlanType); if(mode==="guided") presentIntro(); }
+function startMode(mode){ $("planModeModal").classList.add("hidden"); openEditor(null,pendingPlanType); }
+/* Start a new plan straight from a client's filled-in workbook.
+   Opens an empty plan first (so there is somewhere to load into), then imports.
+   The client does not need to exist in the system beforehand. */
+function startModeImport(input){
+  $("planModeModal").classList.add("hidden");
+  openEditor(null,pendingPlanType);
+  setTimeout(()=>importPlanExcel(input),200);
+}
 function applyPlanTypeUI(){
   const isRet=($("planType").value||"").indexOf("Post")===0;
   DEFAULT_FUND_TYPE=isRet?"Lumpsum":"SIP";
@@ -1814,8 +2092,12 @@ function openEditor(planId,newType){
   }
 }
 function fillEditor(p){
+  currentPlanTeamId=p.teamId||null;
   SCALARS.forEach(k=>setVal(k,p[k]));
-  if(!p.branch) setVal("branch",(profile&&profile.teamId)?(teamName(profile.teamId)||"HO"):"HO");
+  /* rebuild the branch list first so the saved value (or the RM's own branch)
+     is guaranteed to exist as an option, then lock it for non-admins */
+  const ownBranch=(profile&&profile.teamId)?(teamName(profile.teamId)||""):"";
+  fillPlanBranch(p.branch||ownBranch||"");
   if(!p.rateShort) setVal("rateShort",7); if(!p.rateMid) setVal("rateMid",10);
   if(!p.rateLong) setVal("rateLong",12); if(!p.rateInflation) setVal("rateInflation",6);
   applyRmFields(p);
@@ -1838,8 +2120,26 @@ function applyRmFields(p){
     setVal("rmName",p.rmName||""); setVal("rmMobile",p.rmMobile||""); setVal("rmEmail",p.rmEmail||"");
   }
 }
+/* Which branch (team) a plan belongs to decides WHO CAN SEE IT.
+   Visibility is driven by teamId, so changing the Branch on the Basic tab must
+   move the plan's teamId too — otherwise the report label changes but the new
+   branch still can't see the client.
+   It also must NOT be silently set to whoever happens to be saving: an admin
+   opening a Damanjodi plan would otherwise reassign it to their own branch. */
+function teamIdForBranch(name){
+  name=String(name||"").trim(); if(!name) return null;
+  const hit=Object.entries(teamsMap||{}).find(([id,n])=>String(n||"").trim()===name);
+  return hit?hit[0]:null;
+}
+function planTeamIdForSave(branchName){
+  const mapped=teamIdForBranch(branchName);
+  if(mapped) return mapped;                      // branch exists in Setup -> use it
+  if(currentPlanTeamId) return currentPlanTeamId; // keep the plan where it was
+  return profile.teamId||null;                    // brand-new plan -> saver's branch
+}
 function collectPlan(){
-  const o={ teamId:profile.teamId||null, ownerUid:currentUser.uid, ownerEmail:currentUser.email, updatedAt:SVR };
+  const o={ ownerUid:currentUser.uid, ownerEmail:currentUser.email, updatedAt:SVR };
+  o.teamId=planTeamIdForSave(getVal("branch"));
   SCALARS.forEach(k=>{ const el=$(k); if(!el) return; o[k]=(el.type==="number")?(Number(el.value)||0):el.value.trim(); });
   o.branch=getVal("branch");
   Object.keys(LISTS).forEach(name=>o[name]=collectList(name));
@@ -1852,7 +2152,7 @@ function savePlan(){
   if(!data.firstName){ toast("Please enter at least a first name."); showSec("basic"); return; }
   if(profile.role!=="admin" && !data.teamId){ toast("You need a team before saving."); return; }
   const op=currentPlanId ? db.collection("plans").doc(currentPlanId).set(data,{merge:true}) : db.collection("plans").add({...data,createdAt:SVR});
-  op.then(ref=>{ if(ref&&ref.id) currentPlanId=ref.id; savePlanPhotos(currentPlanId,data.teamId); toast("Plan saved."); }).catch(e=>toast("Save failed: "+e.message));
+  op.then(ref=>{ if(ref&&ref.id) currentPlanId=ref.id; currentPlanTeamId=data.teamId||null; savePlanPhotos(currentPlanId,data.teamId); toast("Plan saved."); }).catch(e=>toast("Save failed: "+e.message));
 }
 /* Plans are never deleted from the app — a client record, once created, stays.
    If something truly has to go, an admin removes it from the Firebase console. */
@@ -1864,7 +2164,7 @@ function doAutosave(){
   if(!canSave()) return;
   const data=collectPlan();
   const op=currentPlanId ? db.collection("plans").doc(currentPlanId).set(data,{merge:true}) : db.collection("plans").add({...data,createdAt:SVR});
-  op.then(ref=>{ if(ref&&ref.id) currentPlanId=ref.id; savePlanPhotos(currentPlanId,data.teamId); setAutosaveStatus("Saved ✓"); })
+  op.then(ref=>{ if(ref&&ref.id) currentPlanId=ref.id; currentPlanTeamId=data.teamId||null; savePlanPhotos(currentPlanId,data.teamId); setAutosaveStatus("Saved ✓"); })
     .catch(()=>setAutosaveStatus("Save failed — will retry"));
 }
 
@@ -1931,10 +2231,17 @@ function xlLegend(ws,row){
 }
 const XL_SPARE=5;   // blank rows left at the end of every list so the client can add entries
 
-async function exportPlanExcel(){
+/* Blank workbook to send a brand-new client — same sheets, no data. */
+function downloadBlankExcel(){
+  const empty={firstName:"",middleName:"",lastName:"",clientName:"",
+    family:[],income:[],savings:[],expenses:[],liabilities:[],goals:[],insurance:[]};
+  exportPlanExcel(empty,"Wallet4Wealth_blank_input_sheet.xlsx");
+}
+async function exportPlanExcel(planOverride,fileOverride){
   if(typeof ExcelJS==="undefined"){ toast("Excel library didn't load — check your connection."); return; }
-  const p=collectPlan();
-  if(!p.firstName){ toast("Enter at least a first name before exporting."); showSec("basic"); return; }
+  const blank=!!planOverride;
+  const p=planOverride||collectPlan();
+  if(!blank && !p.firstName){ toast("Enter at least a first name before exporting."); showSec("basic"); return; }
   const wb=new ExcelJS.Workbook();
   wb.creator="Wallet4Wealth"; wb.created=new Date();
 
@@ -1983,18 +2290,18 @@ async function exportPlanExcel(){
 
   /* hidden sheet that ties the workbook to this plan */
   const ms=wb.addWorksheet("_meta"); ms.state="veryHidden";
-  [["key","value"],["planId",currentPlanId||""],["clientName",p.clientName||""],
-   ["schema",XL_SCHEMA],["exportedAt",new Date().toISOString()],["exportedBy",currentUser.email||""]]
+  [["key","value"],["planId",blank?"":(currentPlanId||"")],["clientName",p.clientName||""],
+   ["schema",XL_SCHEMA],["exportedAt",new Date().toISOString()],["exportedBy",(currentUser&&currentUser.email)||""]]
    .forEach((row,i)=>{ ms.getCell(i+1,1).value=row[0]; ms.getCell(i+1,2).value=row[1]; });
 
-  const fname=((p.firstName||"plan")+"_"+(p.lastName||"")).replace(/\s+/g,"_")+"_plan.xlsx";
+  const fname=fileOverride||(((p.firstName||"plan")+"_"+(p.lastName||"")).replace(/\s+/g,"_")+"_plan.xlsx");
   try{
     const buf=await wb.xlsx.writeBuffer();
     const blob=new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fname;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-    toast("Workbook downloaded — send it to the client.");
+    toast(blank?"Blank workbook downloaded — send it to the client.":"Workbook downloaded — send it to the client.");
   }catch(err){ toast("Couldn't build the workbook: "+err.message); }
 }
 
@@ -3225,7 +3532,7 @@ window.addEventListener("resize",()=>{ if(!$("presentMode").classList.contains("
 document.addEventListener("fullscreenchange",()=>{ if(!$("presentMode").classList.contains("hidden")) setTimeout(fitPresent,80); });
 
 /* ---------- init ---------- */
-$("branch").innerHTML=BRANCHES.map(b=>`<option>${b}</option>`).join("");
+fillPlanBranch();   // built from Setup ▸ Branches; locked unless admin
 buildSecNav();
 initLists();
 function clampMax(e){ const t=e&&e.target; if(t&&t.type==="number"&&t.max!==""&&t.max!=null&&+t.value> +t.max) t.value=t.max; }

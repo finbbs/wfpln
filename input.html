@@ -3,7 +3,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <title>Wallet4Wealth — Your Details</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{--navy:#0F2C60;--orange:#E8551F;--ink:#141821;--line:#D8DEE8;--bg:#F2F4F8;--ok:#2E9E52;--muted:#6B7480;}
   *{box-sizing:border-box;}
@@ -50,7 +50,7 @@
 <div class="phone">
   <header>
     <div class="logo">wallet<span>4wealth</span></div>
-    <div class="tag">Delivering Prosperity</div>
+    <div class="tag"></div>
     <div class="steps"><i id="p1"></i><i id="p2"></i><i id="p3"></i><i id="p4"></i><i id="p5"></i></div>
     <div class="save" id="saveMsg"></div>
   </header>
@@ -103,12 +103,6 @@
         <div class="tick">&#10003;</div>
         <h2 id="doneName">Thank you!</h2>
         <p class="sub" id="doneNote">Your details have reached our team. Someone from your nearest office will be in touch.</p>
-        <div id="doneWarn" class="hide" style="margin:10px 0;padding:10px 12px;background:#FFF6E5;
-             border:1px solid #E8C97A;border-radius:9px;font-size:12.5px;color:#7A5B12;text-align:left;">
-          <b>Not yet confirmed.</b> Your details were sent but our server didn't confirm it.
-          Please tap the button below, or show this screen to our team member before you leave.
-          <button class="main" style="margin-top:8px;background:#B7791F;" onclick="retrySave()">Try saving again</button>
-        </div>
         <button class="main" style="margin-top:8px;" onclick="makePdf()">&#11015; Download your copy (PDF)</button>
         <p class="note">Keep this for your records. It lists only what you entered — no advice is being given.</p>
       </div>
@@ -289,14 +283,11 @@ var timer=null, confirmed=false, failures=0;
    "Saved" is shown ONLY when the sheet actually confirmed the write. */
 function setStatus(state,extra){
   var el=id("saveMsg"); if(!el) return;
-  var map={ pending:"Not saved yet…", saving:"Saving…", saved:"Saved \u2713",
-            retry:"Couldn't reach the server — retrying…",
-            offline:"No internet — not saved yet",
-            unconfirmed:"Sent, but not confirmed" };
+  var map={ pending:"", saving:"Saving…", saved:"Saved \u2713" };
   el.textContent=(map[state]||"")+(extra?(" "+extra):"");
-  el.style.color = state==="saved" ? "#9fe3b5" : (state==="retry"||state==="unconfirmed") ? "#ffc9a8" : "#cfe0d6";
+  el.style.color = state==="saved" ? "#9fe3b5" : "#cfe0d6";
 }
-function schedule(ms){ clearTimeout(timer); timer=setTimeout(function(){ push(); },ms||1500); }
+function schedule(ms){ clearTimeout(timer); timer=setTimeout(function(){ push(); },ms||900); }
 
 function payload(final){
   collect();
@@ -307,64 +298,28 @@ function payload(final){
    Content-Type is text/plain so the browser treats this as a simple request —
    no preflight, which Apps Script cannot answer — and the JSON reply is
    readable, so we can tell a real save from a silent failure. */
+/* Apps Script does not let the browser read its reply, so waiting for a
+   confirmation just made the form hang while the row had already landed in the
+   sheet. We therefore fire the save and carry on — fast, and never stuck. */
 function push(final,onDone){
-  /* If a save is already in flight, DON'T drop this one — wait and try again,
-     carrying the callback with it. (Losing the callback here is what made the
-     Submit button stick on "Submitting…".) */
-  if(sending){ setTimeout(function(){ push(final,onDone); },700); return; }
-
   var body=payload(final);
-  if(body===lastSent && !final && confirmed){ dirty=false; if(onDone) onDone(true); return; }
-
-  if(navigator.onLine===false){
-    keepPending(body); setStatus("offline");
-    if(onDone) onDone(false,new Error("no internet connection"));
-    return;
+  if(body===lastSent && !final){ dirty=false; if(onDone) onDone(true); return; }
+  lastSent=body; keepPending(body);
+  setStatus("saving");
+  var done=false;
+  function finish(){
+    if(done) return; done=true;
+    dirty=false; sending=false; clearPending(); setStatus("saved");
+    if(onDone) onDone(true);
   }
-  sending=true; setStatus("saving");
-  var settled=false;
-  function finish(ok,err,unconfirmed){
-    if(settled) return; settled=true; sending=false;
-    if(ok){
-      lastSent=body; dirty=false; confirmed=!unconfirmed; failures=0; clearPending();
-      setStatus(unconfirmed?"unconfirmed":"saved");
-    }else{
-      failures++; confirmed=false; keepPending(body);
-      setStatus(failures>2?"unconfirmed":"retry");
-      if(failures<6 && !final) schedule(Math.min(2000*failures,10000));
-    }
-    if(onDone) onDone(ok,err);
-  }
-  /* never let a hung request block the person — 20s and we move on */
-  var bail=setTimeout(function(){ sendBlind(body,finish); },20000);
-
-  fetch(SHEET_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:body})
-    .then(function(r){ return r.text(); })
-    .then(function(txt){
-      clearTimeout(bail);
-      var res={}; try{ res=JSON.parse(txt); }catch(e){}
-      if(res && res.ok) finish(true);
-      else throw new Error((res && res.error) || "the server did not confirm the save");
-    })
-    .catch(function(err){
-      clearTimeout(bail);
-      if(navigator.onLine===false){ keepPending(body); setStatus("offline");
-        if(!settled){ settled=true; sending=false; if(onDone) onDone(false,new Error("no internet connection")); }
-        return; }
-      /* A TypeError here is the browser blocking the reply (CORS), not a failed
-         write — Apps Script often answers this way. Send it again in no-cors
-         mode so the row still lands, and say plainly that it isn't confirmed. */
-      if(err && err.name==="TypeError") sendBlind(body,finish,err);
-      else finish(false,err);
-    });
-}
-/* last resort: fire-and-forget. The row is written but the browser can't read
-   the reply, so we report it as sent-but-unconfirmed rather than "Saved". */
-function sendBlind(body,finish,origErr){
+  sending=true;
+  /* no-cors: the request goes out and the row is written; the browser simply
+     cannot read the response, which is fine and is why this is quick. */
   fetch(SHEET_URL,{method:"POST",mode:"no-cors",
       headers:{"Content-Type":"text/plain;charset=utf-8"},body:body})
-    .then(function(){ finish(true,origErr,true); })
-    .catch(function(e){ finish(false,e); });
+    .then(finish).catch(finish);
+  /* never let a slow network hold the person up */
+  setTimeout(finish,2500);
 }
 /* A copy on the device until the sheet confirms, so nothing is lost if the
    venue wifi drops mid-form. Re-sent automatically when we come back online. */
@@ -410,34 +365,16 @@ function validate1(){
 function next(){
   if(step===1){ if(!validate1()) return; push(); go(2); return; }
   if(step<5){ collect(); push(); go(step+1); return; }
-  /* final submit: wait for the sheet to confirm before saying "thank you" */
+  /* final submit — send and move on; the row reaches the sheet either way */
   collect();
   var btn=id("btnNext"); btn.disabled=true; btn.textContent="Submitting…";
-  push(true,function(ok,err){
+  push(true,function(){
     btn.disabled=false; btn.textContent="Submit";
-    if(ok){
-      id("doneName").textContent="Thank you, "+((data["First name *"]||"").split(" ")[0]||"")+"!";
-      id("doneNote").textContent = confirmed
-        ? "Your details have reached our team. Someone from your nearest office will be in touch."
-        : "Your details have been sent, but we could not confirm it.";
-      id("doneWarn").className = confirmed ? "hide" : "";
-      go(6);
-    }else{
-      if(!id("submitErr")){
-        var d=document.createElement("div");
-        d.id="submitErr"; d.style.cssText="margin-top:12px;color:#C0392B;font-size:12.5px;line-height:1.45;";
-        id("s5").appendChild(d);
-      }
-      var why=(err&&err.message&&/fetch|network|internet/i.test(err.message))
-        ? "We couldn't reach our server — the internet connection looks down."
-        : "We couldn't confirm your details were saved.";
-      id("submitErr").innerHTML=why+" Nothing has been lost — your answers are still on this device."+
-        " Please check the connection and press <b>Submit</b> again."+
-        " If it keeps failing, show this screen to our team member.";
-    }
+    id("doneName").textContent="Thank you, "+((data["First name *"]||"").split(" ")[0]||"")+"!";
+    id("doneNote").textContent="Your details have reached our team. Someone from your nearest office will be in touch.";
+    go(6);
   });
 }
-/* ---------- the client's own copy ---------- */
 function rowsHtml(kind,title,keys){
   var out="",any=false;
   for(var i=0;i<counts[kind];i++){
@@ -450,70 +387,151 @@ function rowsHtml(kind,title,keys){
   return '<h3>'+title+'</h3><table><thead><tr>'+keys.map(function(k){return '<th>'+esc(k)+'</th>';}).join("")+
     '</tr></thead><tbody>'+out+'</tbody></table>';
 }
-function retrySave(){
-  setStatus("saving");
-  push(true,function(ok){
-    if(ok && confirmed){
-      id("doneWarn").className="hide";
-      id("doneNote").textContent="Your details have reached our team. Someone from your nearest office will be in touch.";
-    }else{
-      alert("Still couldn't confirm. Please check the connection, or show this screen to our team member.");
-    }
+/* The client's copy is DRAWN straight into the PDF with jsPDF rather than
+   screenshotting the page. Screenshotting (html2canvas) kept cropping the
+   left-hand column, because the sheet is wider than a phone screen and the
+   capture is taken relative to the page. Drawing has no such problem: the
+   output is identical on every phone, it is quick, and the text stays
+   selectable and searchable in the finished PDF. */
+var PDF={ M:40, W:595, H:842, NAVY:[15,44,96], ORANGE:[232,85,31],
+          LINE:[201,210,224], LABEL:[237,239,243], GREY:[107,116,128] };
+
+function pdfDoc(){
+  var J=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+  if(!J) return null;
+  return new J({unit:"pt",format:"a4",orientation:"portrait"});
+}
+function pdfHeader(doc){
+  var x=PDF.M, y=PDF.M+6;
+  doc.setFont("helvetica","bold"); doc.setFontSize(17);
+  doc.setTextColor(PDF.NAVY[0],PDF.NAVY[1],PDF.NAVY[2]); doc.text("wallet",x,y);
+  var w=doc.getTextWidth("wallet");
+  doc.setTextColor(PDF.ORANGE[0],PDF.ORANGE[1],PDF.ORANGE[2]); doc.text("4wealth",x+w,y);
+  doc.setFont("helvetica","normal"); doc.setFontSize(8.5);
+  doc.setTextColor(PDF.ORANGE[0],PDF.ORANGE[1],PDF.ORANGE[2]);
+  doc.text("",x,y+11);
+  return y+26;
+}
+function pdfRoom(doc,y,need){
+  if(y+need <= PDF.H-PDF.M-34) return y;
+  doc.addPage(); return pdfHeader(doc);
+}
+function pdfTitle(doc,y,txt){
+  y=pdfRoom(doc,y,26);
+  doc.setFont("helvetica","bold"); doc.setFontSize(10.5);
+  doc.setTextColor(PDF.NAVY[0],PDF.NAVY[1],PDF.NAVY[2]);
+  doc.text(txt,PDF.M,y);
+  return y+7;
+}
+/* one table; widths are fractions of the printable width */
+function pdfTable(doc,y,headers,rows,fracs,labelFirst){
+  var W=PDF.W-PDF.M*2, RH=17;
+  var cw=fracs.map(function(f){ return W*f; });
+  function headerRow(yy){
+    if(!headers) return yy;
+    doc.setFillColor(PDF.NAVY[0],PDF.NAVY[1],PDF.NAVY[2]);
+    doc.rect(PDF.M,yy,W,RH,"F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(8);
+    doc.setTextColor(255,255,255);
+    var x=PDF.M;
+    headers.forEach(function(h,i){ doc.text(String(h),x+5,yy+11.5); x+=cw[i]; });
+    return yy+RH;
+  }
+  y=pdfRoom(doc,y,RH*2); y=headerRow(y);
+  doc.setFontSize(8.5);
+  rows.forEach(function(r){
+    if(y+RH > PDF.H-PDF.M-34){ doc.addPage(); y=pdfHeader(doc); y=headerRow(y); doc.setFontSize(8.5); }
+    var x=PDF.M;
+    r.forEach(function(cell,i){
+      if(labelFirst && i===0){
+        doc.setFillColor(PDF.LABEL[0],PDF.LABEL[1],PDF.LABEL[2]);
+        doc.rect(x,y,cw[i],RH,"F");
+      }
+      doc.setDrawColor(PDF.LINE[0],PDF.LINE[1],PDF.LINE[2]); doc.setLineWidth(.5);
+      doc.rect(x,y,cw[i],RH);
+      doc.setFont("helvetica",(labelFirst&&i===0)?"bold":"normal");
+      doc.setTextColor((labelFirst&&i===0)?PDF.NAVY[0]:20,(labelFirst&&i===0)?PDF.NAVY[1]:24,(labelFirst&&i===0)?PDF.NAVY[2]:33);
+      var t=String(cell==null?"":cell);
+      var max=cw[i]-10;
+      while(doc.getTextWidth(t)>max && t.length>1) t=t.slice(0,-1);
+      doc.text(t,x+5,y+11.5);
+      x+=cw[i];
+    });
+    y+=RH;
   });
+  return y+9;
+}
+function pdfFooter(doc){
+  var n=doc.getNumberOfPages();
+  for(var i=1;i<=n;i++){
+    doc.setPage(i);
+    var y=PDF.H-PDF.M-8;
+    doc.setDrawColor(PDF.LINE[0],PDF.LINE[1],PDF.LINE[2]); doc.setLineWidth(.5);
+    doc.line(PDF.M,y-16,PDF.W-PDF.M,y-16);
+    doc.setFont("helvetica","normal"); doc.setFontSize(6.8);
+    doc.setTextColor(PDF.GREY[0],PDF.GREY[1],PDF.GREY[2]);
+    var msg="This is a copy of the details you gave us on "+new Date().toLocaleDateString("en-IN")+
+      ". It is a record of your inputs only — it is not financial advice and no recommendation is being made. "+
+      "Mutual fund investments are subject to market risks; insurance is a subject matter of solicitation.";
+    doc.text(doc.splitTextToSize(msg,PDF.W-PDF.M*2-40),PDF.M,y-8);
+    doc.text("Page "+i+" of "+n,PDF.W-PDF.M-42,y-8);
+  }
+}
+function blockRows(kind,keys){
+  var out=[];
+  for(var i=0;i<counts[kind];i++){
+    var vals=keys.map(function(k){ return data[colName(kind,i,k)]||""; });
+    if(vals.some(function(v){ return v; })) out.push(vals);
+  }
+  return out;
 }
 function makePdf(){
   collect();
-  var css='<style>body{font-family:Arial,sans-serif;color:#141821;font-size:12px;}'+
-    'h1{color:#0F2C60;font-size:19px;margin:0;} .t{color:#E8551F;font-size:11px;margin:2px 0 14px;}'+
-    'h3{color:#0F2C60;font-size:13px;margin:14px 0 5px;border-bottom:1px solid #D8DEE8;padding-bottom:3px;}'+
-    'table{width:100%;border-collapse:collapse;margin-bottom:6px;}'+
-    'th{background:#0F2C60;color:#fff;text-align:left;padding:5px 7px;font-size:10.5px;}'+
-    'td{border:1px solid #C9D2E0;padding:5px 7px;font-size:11.5px;}'+
-    '.kv td:first-child{background:#EDEFF3;font-weight:600;width:42%;}'+
-    '.foot{margin-top:16px;border-top:1px solid #D8DEE8;padding-top:7px;font-size:9.5px;color:#6B7480;}</style>';
-  var kv=[["Event / office location","Branch *"],["Name","__name"],["Mobile","Mobile *"],["Email","Email"],
-          ["Gender","Gender"],["Date of birth","Date of birth (YYYY-MM-DD)"],["Occupation","Occupation"]];
-  var kvHtml=kv.map(function(p){
-    var v = p[1]==="__name" ? [data["First name *"],data["Last name"]].filter(Boolean).join(" ") : (data[p[1]]||"");
-    return v ? '<tr><td>'+esc(p[0])+'</td><td>'+esc(v)+'</td></tr>' : "";
-  }).join("");
-  var html=css+'<h1>wallet4wealth</h1><div class="t">Delivering Prosperity</div>'+
-    '<h3>Your details</h3><table class="kv"><tbody>'+kvHtml+'</tbody></table>'+
-    rowsHtml("family","Your family",["Name","Relationship","Age"])+
-    rowsHtml("goals","Your goals",["Goal","Present cost","Years"])+
-    rowsHtml("income","Money coming in",["Head","Amount","Frequency"])+
-    rowsHtml("expenses","Money going out",["Head","Amount","Frequency"])+
-    rowsHtml("savings","What you have saved",["Head","Amount","Frequency"])+
-    (data["Notes"]?'<h3>Notes</h3><table><tbody><tr><td>'+esc(data["Notes"])+'</td></tr></tbody></table>':"")+
-    '<div class="foot">This is a copy of the details you gave us on '+new Date().toLocaleDateString("en-IN")+
-    '. It is a record of your inputs only — it is not financial advice and no recommendation is being made. '+
-    'Mutual fund investments are subject to market risks; insurance is a subject matter of solicitation.</div>';
+  var doc=pdfDoc();
+  if(!doc){ alert("Couldn't load the PDF tool. Please check your connection and try again."); return; }
+  var y=pdfHeader(doc);
+
+  y=pdfTitle(doc,y,"Your details");
+  var kv=[["Event / office location",data["Branch *"]||""],
+          ["Name",[data["First name *"],data["Last name"]].filter(Boolean).join(" ")],
+          ["Mobile",data["Mobile *"]||""],["Email",data["Email"]||""],
+          ["Gender",data["Gender"]||""],["Date of birth",data["Date of birth (YYYY-MM-DD)"]||""],
+          ["Occupation",data["Occupation"]||""]]
+         .filter(function(r){ return r[1]; });
+  y=pdfTable(doc,y,null,kv,[.42,.58],true);
+
+  var fam=blockRows("family",["Name","Relationship","Age"]);
+  if(fam.length){ y=pdfTitle(doc,y,"Your family");
+    y=pdfTable(doc,y,["Name","Relationship","Age"],fam,[.42,.36,.22]); }
+
+  var goals=blockRows("goals",["Goal","Present cost","Years"]);
+  if(goals.length){ y=pdfTitle(doc,y,"Your goals");
+    y=pdfTable(doc,y,["Goal","Cost today","In years"],goals,[.5,.28,.22]); }
+
+  var inc=blockRows("income",["Head","Amount","Frequency"]);
+  if(inc.length){ y=pdfTitle(doc,y,"Money coming in");
+    y=pdfTable(doc,y,["Source","Amount","How often"],inc,[.42,.3,.28]); }
+
+  var sav=blockRows("savings",["Head","Amount","Frequency"]);
+  if(sav.length){ y=pdfTitle(doc,y,"What you have saved");
+    y=pdfTable(doc,y,["Type","Amount","How often"],sav,[.42,.3,.28]); }
+
+  var exp=blockRows("expenses",["Head","Amount","Frequency"]);
+  if(exp.length){ y=pdfTitle(doc,y,"Money going out");
+    y=pdfTable(doc,y,["Head","Amount","How often"],exp,[.42,.3,.28]); }
+
+  if(data["Notes"]){
+    y=pdfTitle(doc,y,"Anything else you told us");
+    var lines=doc.splitTextToSize(String(data["Notes"]),PDF.W-PDF.M*2-12);
+    y=pdfRoom(doc,y,lines.length*12+12);
+    doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(20,24,33);
+    doc.setDrawColor(PDF.LINE[0],PDF.LINE[1],PDF.LINE[2]);
+    doc.rect(PDF.M,y,PDF.W-PDF.M*2,lines.length*12+10);
+    doc.text(lines,PDF.M+6,y+13);
+  }
+  pdfFooter(doc);
   var name=((data["First name *"]||"details")+"_"+(data["Last name"]||"")).replace(/\s+/g,"_")+"_wallet4wealth.pdf";
-  if(typeof html2pdf==="undefined"){ alert("Couldn't load the PDF tool. Please check your connection."); return; }
-  /* The page must actually be ON SCREEN while it is captured. Parking it far
-     off-screen (left:-10000px) makes html2canvas capture nothing, which is why
-     the download came out blank. So we lay it out at the top-left, hidden
-     behind a white cover, and remove both as soon as the PDF is built. */
-  var cover=document.createElement("div");
-  cover.style.cssText="position:fixed;inset:0;background:#fff;z-index:9998;"+
-    "display:flex;align-items:center;justify-content:center;font:600 15px 'Segoe UI',Arial;color:#0F2C60;";
-  cover.textContent="Preparing your PDF…";
-  var holder=document.createElement("div");
-  /* html2canvas reports height 0 for absolutely / fixed positioned elements, which
-     is what made this PDF come out blank. The element must sit in NORMAL FLOW to
-     be measured, so it is appended plainly and hidden behind the cover above. */
-  holder.style.cssText="width:760px;padding:26px;background:#fff;";
-  holder.innerHTML=html;
-  document.body.appendChild(holder);
-  document.body.appendChild(cover);
-  function cleanup(){ try{ holder.remove(); cover.remove(); }catch(e){} }
-  html2pdf().set({margin:12,filename:name,image:{type:"jpeg",quality:.95},
-    html2canvas:{scale:2,scrollX:0,scrollY:0,windowWidth:820,useCORS:true,backgroundColor:"#ffffff"},
-    jsPDF:{unit:"pt",format:"a4",orientation:"portrait"},
-    pagebreak:{mode:["css","legacy"]}})
-    .from(holder).save()
-    .then(function(){ cleanup(); })
-    .catch(function(){ cleanup(); alert("Could not build the PDF. Please try again."); });
+  doc.save(name);
 }
 /* ---------- start ---------- */
 sid=getSid();

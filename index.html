@@ -365,7 +365,14 @@
           <button class="btn gold" onclick="newPlan()">+ New plan</button>
         </div>
       </div>
-      <div id="planList"></div>
+      <div id="bulkBar" class="hidden" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+     margin:0 0 10px;padding:9px 12px;background:#FFF3F2;border:1px solid #E9B8B2;border-radius:10px;">
+  <b id="bulkCount" style="font-size:13px;color:#8C2F22;"></b>
+  <button class="btn ghost small" onclick="bulkClearSel()">Clear</button>
+  <button class="btn small" style="background:#C0392B;border-color:#C0392B;color:#fff;" onclick="bulkDeleteAsk()">Delete selected</button>
+  <span style="font-size:11.5px;color:#8C2F22;">Deleting cannot be undone.</span>
+</div>
+<div id="planList"></div>
     </section>
 
     <section id="adminView" class="hidden">
@@ -704,11 +711,31 @@
   <button class="btn ghost small" style="margin-top:14px;width:100%;" onclick="$('restoreModal').classList.add('hidden');pendingBackup=null;">Cancel</button>
 </div></div>
 
+<div id="delModal" class="pdfover hidden"><div class="box" style="max-width:480px;">
+  <div style="font-weight:800;color:#C0392B;font-size:18px;margin-bottom:4px;">Delete <span id="delCount"></span> plan(s)?</div>
+  <p class="muted" style="font-size:13px;margin:0 0 10px;">This removes the plans and their photos for everyone, permanently.
+    It cannot be undone and there is no recycle bin. Consider taking a backup first.</p>
+  <ul id="delNames" style="max-height:170px;overflow:auto;margin:0 0 12px;padding-left:20px;font-size:13px;"></ul>
+  <label style="font-size:12.5px;font-weight:600;">Type <b>DELETE</b> to confirm</label>
+  <input id="delType" oninput="bulkDeleteTyped()" placeholder="DELETE" autocomplete="off">
+  <div id="delProgress" style="font-size:12px;color:var(--muted);margin-top:8px;"></div>
+  <div style="display:flex;gap:10px;margin-top:12px;">
+    <button class="btn" id="delGo" style="flex:1;background:#C0392B;border-color:#C0392B;" disabled onclick="bulkDeleteRun()">Delete permanently</button>
+    <button class="btn ghost" style="flex:1;" onclick="$('delModal').classList.add('hidden')">Cancel</button>
+  </div>
+</div></div>
 <div id="bulkModal" class="pdfover hidden"><div class="box" style="max-width:760px;">
   <div style="font-weight:800;color:#0F2C60;font-size:18px;margin-bottom:4px;">Bulk import — check before creating</div>
   <p class="muted" style="font-size:13px;margin:0 0 10px;">Nothing is saved until you press Create. Rows are matched to a branch by name, so each branch's team sees their own clients straight away.</p>
   <div id="bulkSummary" style="font-size:13.5px;margin-bottom:10px;"></div>
   <div id="bulkTable" style="max-height:330px;overflow:auto;border:1px solid var(--line);border-radius:8px;"></div>
+  <div id="bulkFixWrap" class="hidden" style="margin-top:12px;padding:10px 12px;background:#FFF8E6;
+       border:1px solid #E8C97A;border-radius:8px;font-size:13px;">
+    <div style="margin-bottom:6px;"><b id="bulkFixCount"></b> row(s) have a location that isn't one of your
+      branches — e.g. an event venue typed on the intake form.</div>
+    <label style="display:block;font-weight:600;font-size:12.5px;margin-bottom:4px;">Put those clients in this branch:</label>
+    <select id="bulkFixBranch" onchange="bulkApplyFix()" style="width:100%;"></select>
+  </div>
   <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;">
     <input type="checkbox" id="bulkSkipDup" style="width:auto;"> Skip rows whose mobile number already exists
   </label>
@@ -1570,7 +1597,7 @@ document.addEventListener("DOMContentLoaded",function(){
    BULK_COLS is the single source of truth: the template and the importer are
    both generated from it, so they can never drift apart.
    Repeating sections are flattened to a fixed number of slots.            */
-const BULK_REPEAT={family:4,income:3,savings:3,expenses:3,liabilities:2,goals:3,insurance:2};
+const BULK_REPEAT={family:4,income:3,savings:3,expenses:3,liabilities:2,goals:7,insurance:2};
 function bulkCols(){
   const c=[];
   c.push({h:"Branch *",k:"branch",need:true,list:"branch"});
@@ -1731,7 +1758,25 @@ function importBulkExcel(input){
   };
   rd.readAsArrayBuffer(f);
 }
-function bulkShowPreview(){
+/* The intake form lets people type an event venue ("Vizag Town Hall"), which is
+   not a branch name. Rather than skipping those rows, let the admin send them to
+   a branch of their choice — the typed venue is still kept in the plan. */
+function bulkApplyFix(){
+  var pick=$("bulkFixBranch").value, tid=teamIdForBranch(pick);
+  (bulkPending||[]).forEach(function(r){
+    if(!r.origProblems) r.origProblems=r.problems.slice();
+    var unmapped=r.origProblems.some(function(x){ return /branch/i.test(x); });
+    if(!unmapped) return;
+    if(tid){
+      r.teamId=tid; r.fixedTo=pick;
+      r.problems=r.origProblems.filter(function(x){ return !/branch/i.test(x); });
+    }else{
+      r.teamId=null; r.fixedTo=null; r.problems=r.origProblems.slice();
+    }
+  });
+  bulkShowPreview(true);
+}
+function bulkShowPreview(keepFix){
   const rows=bulkPending||[];
   const ok=rows.filter(r=>!r.problems.length);
   const bad=rows.filter(r=>r.problems.length);
@@ -1739,14 +1784,31 @@ function bulkShowPreview(){
   const body=rows.map(r=>{
     const nm=r.plan.clientName||"—";
     const st=r.problems.length?('<span style="color:#C0392B;">skip — '+escapeHtml(r.problems.join(", "))+'</span>')
-      :(r.dup?('<span style="color:#B7791F;">duplicate of '+escapeHtml(r.dup)+'</span>'):'<span style="color:#2E9E52;">ready</span>');
+      :(r.dup?('<span style="color:#B7791F;">duplicate of '+escapeHtml(r.dup)+'</span>')
+      :(r.fixedTo?('<span style="color:#2E9E52;">ready → '+escapeHtml(r.fixedTo)+'</span>')
+      :'<span style="color:#2E9E52;">ready</span>'));
     return `<tr><td>${r.row}</td><td>${escapeHtml(nm)}</td><td>${escapeHtml(r.plan.mobile||"—")}</td><td>${escapeHtml(r.plan.branch||"—")}</td><td>${st}</td></tr>`;
   }).join("");
   $("bulkSummary").innerHTML=
     `<b>${ok.length}</b> ready to create · <b>${dups.length}</b> look like duplicates · <b>${bad.length}</b> will be skipped`;
   $("bulkTable").innerHTML=`<table class="data" style="font-size:12.5px;"><thead><tr>
       <th>Row</th><th>Name</th><th>Mobile</th><th>Branch</th><th>Status</th></tr></thead><tbody>${body}</tbody></table>`;
-  $("bulkSkipDup").checked=true;
+  /* offer a branch for any row whose typed location isn't a real branch */
+  const unmapped=rows.filter(function(r){
+    const list=r.origProblems||r.problems;
+    return list.some(function(x){ return /branch/i.test(x); });
+  });
+  const wrap=$("bulkFixWrap"), selEl=$("bulkFixBranch");
+  if(unmapped.length){
+    wrap.classList.remove("hidden");
+    $("bulkFixCount").textContent=unmapped.length;
+    if(!keepFix){
+      const names=planBranchNames();
+      selEl.innerHTML='<option value="">— skip these rows —</option>'+
+        names.map(function(b){ return '<option>'+escapeHtml(b)+'</option>'; }).join("");
+    }
+  }else wrap.classList.add("hidden");
+  if(!keepFix) $("bulkSkipDup").checked=true;
   $("bulkGo").disabled=!ok.length;
   $("bulkModal").classList.remove("hidden");
 }
@@ -1776,6 +1838,75 @@ function bulkCreate(){
       .then(()=>{ $("bulkSummary").innerHTML="Creating… "+(i+1)+" of "+rows.length; next(i+1); });
   };
   next(0);
+}
+
+
+/* ===================== BULK DELETE (admin only) =========================
+   Deleting plans cannot be undone, so this is deliberately awkward:
+   admin-only, shows exactly who will go, and needs the word DELETE typed.
+   Each plan's photos live in a separate collection and are removed too,
+   otherwise they would be left behind with nothing pointing at them.     */
+function bulkPicked(){
+  return [].slice.call(document.querySelectorAll(".pickPlan:checked"))
+    .map(function(c){ return {id:c.value,name:c.getAttribute("data-name")||"Untitled"}; });
+}
+function bulkToggleAll(box){
+  document.querySelectorAll(".pickPlan").forEach(function(c){ c.checked=box.checked; });
+  bulkSelChanged();
+}
+function bulkSelChanged(){
+  var n=bulkPicked().length, bar=$("bulkBar");
+  if(!bar) return;
+  bar.classList.toggle("hidden", n===0 || !isAdminUser());
+  var lbl=$("bulkCount"); if(lbl) lbl.textContent=n+" selected";
+  var all=$("pickAll");
+  if(all){
+    var total=document.querySelectorAll(".pickPlan").length;
+    all.checked = total>0 && n===total;
+    all.indeterminate = n>0 && n<total;
+  }
+}
+function bulkClearSel(){
+  document.querySelectorAll(".pickPlan").forEach(function(c){ c.checked=false; });
+  var all=$("pickAll"); if(all){ all.checked=false; all.indeterminate=false; }
+  bulkSelChanged();
+}
+function bulkDeleteAsk(){
+  if(!isAdminUser()){ toast("Deleting plans is available to admins only."); return; }
+  var picked=bulkPicked();
+  if(!picked.length){ toast("Nothing selected."); return; }
+  var names=picked.slice(0,12).map(function(p){ return "<li>"+escapeHtml(p.name)+"</li>"; }).join("");
+  if(picked.length>12) names+="<li>…and "+(picked.length-12)+" more</li>";
+  $("delCount").textContent=picked.length;
+  $("delNames").innerHTML=names;
+  $("delType").value="";
+  $("delGo").disabled=true;
+  $("delModal").classList.remove("hidden");
+}
+function bulkDeleteTyped(){
+  $("delGo").disabled = ($("delType").value.trim().toUpperCase()!=="DELETE");
+}
+function bulkDeleteRun(){
+  if(!isAdminUser()){ toast("Deleting plans is available to admins only."); return; }
+  if($("delType").value.trim().toUpperCase()!=="DELETE"){ toast("Type DELETE to confirm."); return; }
+  var picked=bulkPicked();
+  if(!picked.length){ $("delModal").classList.add("hidden"); return; }
+  $("delGo").disabled=true;
+  var done=0, failed=0;
+  function step(i){
+    if(i>=picked.length){
+      $("delModal").classList.add("hidden");
+      toast(done+" plan"+(done===1?"":"s")+" deleted"+(failed?(", "+failed+" failed"):"."));
+      bulkClearSel(); loadPlans(); return;
+    }
+    var pid=picked[i].id;
+    db.collection("plans").doc(pid).delete()
+      .then(function(){ done++; return db.collection("planPhotos").doc(pid).delete().catch(function(){}); })
+      .catch(function(){ failed++; })
+      .then(function(){ $("delProgress").textContent="Deleting "+(i+1)+" of "+picked.length+"…"; step(i+1); });
+  }
+  $("delProgress").textContent="Deleting 1 of "+picked.length+"…";
+  step(0);
 }
 
 /* ---------- tabs / teams / admin ---------- */
@@ -2012,14 +2143,22 @@ function renderPlans(){
   if(term) items=items.filter(x=>{ const p=x.data; const nm=([p.firstName,p.lastName].filter(Boolean).join(" ")||p.clientName||"").toLowerCase(); return nm.includes(term)||String(p.mobile||"").includes(term); });
   if(!items.length){ list.innerHTML='<div class="empty">No plans found. Click <b>+ New plan</b> to create one.</div>'; return; }
   if(dashMode==="list"){
+    const canBulk=isAdminUser();
     const rows=items.map(x=>{ const p=x.data; const nm=[p.firstName,p.lastName].filter(Boolean).join(" ")||p.clientName||"Untitled"; const prog=planProgress(p);
+      /* the checkbox must not open the plan, hence stopPropagation */
+      const pick=canBulk?`<td onclick="event.stopPropagation();" style="width:34px;text-align:center;">
+        <input type="checkbox" class="pickPlan" value="${x.id}" data-name="${escapeHtml(nm)}"
+               onchange="bulkSelChanged()" style="width:auto;"></td>`:"";
       return `<tr onclick="openEditor('${x.id}')" style="cursor:pointer;">
-        <td><b>${escapeHtml(nm)}</b></td><td>${escapeHtml(p.mobile||"—")}</td>
+        ${pick}<td><b>${escapeHtml(nm)}</b></td><td>${escapeHtml(p.mobile||"—")}</td>
         <td>${fmtDate(p.updatedAt)}</td><td>${escapeHtml(p.rmName||p.ownerEmail||"—")}</td>
         ${profile.role==="admin"?`<td>${escapeHtml(teamName(p.teamId))}</td>`:""}
         <td><div class="pbar-mini"><div style="width:${prog}%;"></div></div> <span style="font-size:11px;color:var(--muted);">${prog}%</span></td>
         <td>${escapeHtml(p.planType||"")}</td></tr>`; }).join("");
-    list.innerHTML=`<table class="calc"><thead><tr><th>Name</th><th>Mobile</th><th>Last opened</th><th>RM</th>${profile.role==="admin"?"<th>Team</th>":""}<th>Progress</th><th>Type</th></tr></thead><tbody>${rows}</tbody></table>`;
+    const pickHead=canBulk?`<th style="width:34px;text-align:center;">
+      <input type="checkbox" id="pickAll" onclick="bulkToggleAll(this)" title="Select all shown" style="width:auto;"></th>`:"";
+    list.innerHTML=`<table class="calc"><thead><tr>${pickHead}<th>Name</th><th>Mobile</th><th>Last opened</th><th>RM</th>${profile.role==="admin"?"<th>Team</th>":""}<th>Progress</th><th>Type</th></tr></thead><tbody>${rows}</tbody></table>`;
+    bulkSelChanged();
   } else {
     let html='<div class="plan-grid">';
     items.forEach(x=>{ const p=x.data; const nm=[p.firstName,p.lastName].filter(Boolean).join(" ")||p.clientName||"Untitled"; const prog=planProgress(p);
@@ -2237,6 +2376,54 @@ function downloadBlankExcel(){
     family:[],income:[],savings:[],expenses:[],liabilities:[],goals:[],insurance:[]};
   exportPlanExcel(empty,"Wallet4Wealth_blank_input_sheet.xlsx");
 }
+
+/* Dropdown choices for the client workbook. Taken from the app's own option
+   lists so a client can only pick values the form already accepts — that
+   removes most of the spelling mismatches we used to fix by hand on import. */
+const XL_GOAL_NAMES=["Child Education","Higher Education","Child Marriage","Marriage","Buy a Car",
+  "Buy a House","Home Renovation","Vacation / Travel","Emergency Fund","Retirement",
+  "Wealth Creation","Business Setup","Medical Corpus"];
+const XL_INS_PRODUCTS=["Term","Health","Personal Accident","Critical Illness","ULIP",
+  "Endowment","Money Back","Child Plan","Pension Plan","Motor","Other"];
+function xlChoicesFor(sec,key){
+  if(sec==="insurance"&&key==="product") return XL_INS_PRODUCTS;
+  if(sec==="__client__"){
+    if(key==="gender")  return ["Male","Female","Other"];
+    if(key==="marital") return ["Single","Married"];
+    return null;
+  }
+  if(sec==="goals") return (key==="name")?XL_GOAL_NAMES:null;
+  const col=(LISTS[sec]&&LISTS[sec].cols||[]).find(c=>c.key===key);
+  return (col&&col.type==="select"&&col.options&&col.options.length)?col.options:null;
+}
+/* Excel needs the choices to live somewhere; a hidden sheet holds them and each
+   cell points at the right column. */
+function xlBuildChoiceSheet(wb){
+  const sheet=wb.addWorksheet("Choices"); sheet.state="veryHidden";
+  const ref={}; let col=1;
+  const add=(name,vals)=>{
+    if(!vals||!vals.length||ref[name]) return;
+    vals.forEach((v,i)=>sheet.getCell(i+1,col).value=v);
+    const L=sheet.getColumn(col).letter;
+    ref[name]="Choices!$"+L+"$1:$"+L+"$"+vals.length; col++;
+  };
+  add("gender",xlChoicesFor("__client__","gender"));
+  add("marital",xlChoicesFor("__client__","marital"));
+  add("goals.name",XL_GOAL_NAMES);
+  add("insurance.product",XL_INS_PRODUCTS);
+  Object.keys(LISTS).forEach(sec=>(LISTS[sec].cols||[]).forEach(c=>{
+    if(c.type==="select"&&c.options&&c.options.length) add(sec+"."+c.key,c.options);
+  }));
+  return ref;
+}
+function xlApplyChoice(cell,ref,name){
+  if(!name||!ref[name]) return;
+  /* allowBlank so "not applicable" is still possible; showErrorMessage warns
+     but does not block, in case a client genuinely needs something else */
+  cell.dataValidation={type:"list",allowBlank:true,showErrorMessage:true,
+    errorStyle:"warning",error:"Please pick from the list where you can.",formulae:[ref[name]]};
+}
+
 async function exportPlanExcel(planOverride,fileOverride){
   if(typeof ExcelJS==="undefined"){ toast("Excel library didn't load — check your connection."); return; }
   const blank=!!planOverride;
@@ -2244,6 +2431,7 @@ async function exportPlanExcel(planOverride,fileOverride){
   if(!blank && !p.firstName){ toast("Enter at least a first name before exporting."); showSec("basic"); return; }
   const wb=new ExcelJS.Workbook();
   wb.creator="Wallet4Wealth"; wb.created=new Date();
+  const CH=xlBuildChoiceSheet(wb);
 
   XL_LAYOUT.forEach((sh,si)=>{
     const ws=wb.addWorksheet(sh.sheet);
@@ -2264,22 +2452,27 @@ async function exportPlanExcel(planOverride,fileOverride){
       if(b.type==="kv"){
         /* vertical: "Field | Value", one field per row — easiest for a client to read */
         xlHead(ws,r,["Field","Value"]); r++;
-        XL_CLIENT.forEach(([k,l])=>{ xlLabel(ws,r,1,l); xlEdit(ws,r,2,p[k]); r++; });
+        XL_CLIENT.forEach(([k,l])=>{ xlLabel(ws,r,1,l); const c=xlEdit(ws,r,2,p[k]);
+          xlApplyChoice(c,CH,(k==="gender"||k==="marital")?k:null); r++; });
         maxCol=Math.max(maxCol,2);
         ws.getColumn(1).width=38; if(!ws.getColumn(2).width||ws.getColumn(2).width<34) ws.getColumn(2).width=34;
       }else if(b.type==="goals"){
         const labels=XL_GOAL.map(g=>g[1]);
         xlHead(ws,r,labels); r++;
-        (p.goals||[]).forEach(g=>{ XL_GOAL.forEach(([k],i)=>xlEdit(ws,r,i+1,g[k]!=null?g[k]:"")); r++; });
-        for(let k=0;k<XL_SPARE;k++){ labels.forEach((_,i)=>xlEdit(ws,r,i+1,"")); r++; }
+        (p.goals||[]).forEach(g=>{ XL_GOAL.forEach(([k],i)=>{ const c=xlEdit(ws,r,i+1,g[k]!=null?g[k]:"");
+          xlApplyChoice(c,CH,"goals."+k); }); r++; });
+        for(let k2=0;k2<XL_SPARE;k2++){ XL_GOAL.forEach(([k],i)=>{ const c=xlEdit(ws,r,i+1,"");
+          xlApplyChoice(c,CH,"goals."+k); }); r++; }
         maxCol=Math.max(maxCol,labels.length);
         labels.forEach((_,i)=>{ const w=i===0?26:16; const col=ws.getColumn(i+1);
           if(!col.width||col.width<w) col.width=w; });
       }else{
         const cols=LISTS[b.key].cols, labels=cols.map(c=>c.label);
         xlHead(ws,r,labels); r++;
-        (p[b.key]||[]).forEach(row=>{ cols.forEach((c,i)=>xlEdit(ws,r,i+1,row[c.key]!=null?row[c.key]:"")); r++; });
-        for(let k=0;k<XL_SPARE;k++){ cols.forEach((_,i)=>xlEdit(ws,r,i+1,"")); r++; }
+        (p[b.key]||[]).forEach(row=>{ cols.forEach((c,i)=>{ const cell=xlEdit(ws,r,i+1,row[c.key]!=null?row[c.key]:"");
+          xlApplyChoice(cell,CH,b.key+"."+c.key); }); r++; });
+        for(let k2=0;k2<XL_SPARE;k2++){ cols.forEach((c,i)=>{ const cell=xlEdit(ws,r,i+1,"");
+          xlApplyChoice(cell,CH,b.key+"."+c.key); }); r++; }
         maxCol=Math.max(maxCol,labels.length);
         cols.forEach((_,i)=>{ const w=i===0?26:20; const col=ws.getColumn(i+1);
           if(!col.width||col.width<w) col.width=w; });
@@ -3444,7 +3637,9 @@ function downloadInputPdf(){
   const p=collectPlan();
   if(!p.firstName){ toast("Enter at least a first name first."); showSec("basic"); return; }
   const holder=document.createElement("div");
-  holder.style.cssText="position:fixed;left:-10000px;top:0;";
+  /* Must be in normal flow: html2canvas measures a fixed/absolute element as
+     height 0 and the PDF comes out blank. The overlay hides it while it renders. */
+  holder.style.cssText="width:794px;background:#fff;";
   holder.innerHTML=buildInputSheet(p);
   document.body.appendChild(holder);
   const name=((p.firstName||"client")+"_"+(p.lastName||"")).replace(/\s+/g,"_")+"_input_sheet.pdf";

@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Wallet4Wealth — Your Details</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  :root{--navy:#0F2C60;--orange:#E8551F;--ink:#141821;--line:#D8DEE8;--bg:#F2F4F8;--ok:#2E9E52;--muted:#6B7480;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif;}
+  .phone{max-width:440px;margin:0 auto;min-height:100vh;background:#fff;box-shadow:0 0 40px rgba(0,0,0,.10);}
+  header{background:var(--navy);color:#fff;padding:14px 18px;position:sticky;top:0;z-index:5;}
+  .logo{font-size:19px;font-weight:800;} .logo span{color:var(--orange);}
+  .tag{font-size:11.5px;opacity:.85;}
+  .steps{display:flex;gap:5px;margin-top:10px;}
+  .steps i{flex:1;height:4px;border-radius:3px;background:#2a4a86;}
+  .steps i.on{background:var(--orange);}
+  .save{font-size:11px;color:#cfe0d6;margin-top:7px;min-height:14px;}
+  main{padding:16px 18px 100px;}
+  h2{font-size:17px;color:var(--navy);margin:2px 0;}
+  .sub{font-size:12.5px;color:var(--muted);margin:2px 0 14px;}
+  label{display:block;font-size:12.5px;font-weight:600;margin:10px 0 4px;}
+  .req:after{content:" *";color:var(--orange);}
+  input,select,textarea{width:100%;font-size:16px;padding:12px;border:1.5px solid var(--line);
+    border-radius:10px;background:#fff;font-family:inherit;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);}
+  .err{color:#C0392B;font-size:12px;margin-top:4px;display:none;}
+  .bad input,.bad select{border-color:#C0392B;} .bad .err{display:block;}
+  .card{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;position:relative;background:#fff;}
+  .card .no{font-size:11.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.4px;}
+  .del{position:absolute;top:8px;right:8px;background:#fff;border:1px solid var(--line);color:#C0392B;
+    border-radius:8px;font-size:13px;padding:4px 9px;cursor:pointer;min-height:30px;width:auto;}
+  .addmore{width:100%;background:#fff;color:var(--navy);border:1.5px dashed var(--navy);
+    border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:6px;}
+  .row{display:flex;gap:8px;} .row>*{flex:1;min-width:0;}
+  footer{position:fixed;bottom:0;left:0;right:0;max-width:440px;margin:0 auto;background:#fff;
+    border-top:1px solid var(--line);padding:10px 18px;}
+  button.main{width:100%;font-size:16px;font-weight:700;padding:14px;border:none;border-radius:10px;
+    background:var(--navy);color:#fff;cursor:pointer;min-height:50px;}
+  button.ghost{background:#fff;color:var(--navy);border:1.5px solid var(--navy);}
+  .two{display:flex;gap:8px;} .two button{flex:1;}
+  .notice{margin-top:16px;padding:11px 12px;background:#F4F6FA;border-left:3px solid var(--navy);
+    border-radius:6px;font-size:11.5px;color:#4A5260;line-height:1.5;}
+  .hide{display:none;}
+  .done{text-align:center;padding:44px 22px;}
+  .tick{width:66px;height:66px;border-radius:50%;background:var(--ok);color:#fff;font-size:34px;line-height:66px;margin:0 auto 14px;}
+  .note{font-size:11.5px;color:var(--muted);line-height:1.45;margin-top:12px;}
+</style></head>
+<body>
+<div class="phone">
+  <header>
+    <div class="logo">wallet<span>4wealth</span></div>
+    <div class="tag">Delivering Prosperity</div>
+    <div class="steps"><i id="p1"></i><i id="p2"></i><i id="p3"></i><i id="p4"></i><i id="p5"></i></div>
+    <div class="save" id="saveMsg"></div>
+  </header>
+
+  <main>
+    <section id="s1"><h2>About you</h2>
+      <p class="sub">Just a few basics so we know who to contact.</p>
+      <div id="f1"></div>
+      <p class="notice">By continuing, you agree that Wallet4Wealth may contact you and may store these
+        details. We never ask for account numbers, passwords or OTPs on this form.</p>
+    </section>
+
+    <section id="s2" class="hide"><h2>Your family</h2>
+      <p class="sub">Add the people who depend on you. Skip if you'd rather not say.</p>
+      <div id="famWrap"></div>
+      <button class="addmore" onclick="addRow('family')">+ Add another family member</button>
+    </section>
+
+    <section id="s3" class="hide"><h2>Your goals</h2>
+      <p class="sub">What are you saving for, and roughly when do you need it?</p>
+      <div id="goalWrap"></div>
+      <button class="addmore" onclick="addRow('goals')">+ Add another goal</button>
+    </section>
+
+    <section id="s4" class="hide"><h2>Money coming in &amp; savings</h2>
+      <p class="sub">Rough figures are fine — we'll go through the detail with you later.</p>
+      <h2 style="font-size:14px;margin-top:14px;">Money coming in</h2>
+      <div id="incWrap"></div>
+      <button class="addmore" onclick="addRow('income')">+ Add another income</button>
+      <h2 style="font-size:14px;margin-top:18px;">What you have already saved</h2>
+      <div id="savWrap"></div>
+      <button class="addmore" onclick="addRow('savings')">+ Add another saving / investment</button>
+    </section>
+
+    <section id="s5" class="hide"><h2>Money going out</h2>
+      <p class="sub">What you spend each month or year. Rough figures are fine.</p>
+      <div id="expWrap"></div>
+      <button class="addmore" onclick="addRow('expenses')">+ Add another expense</button>
+      <label for="f_notes">Anything else we should know</label>
+      <textarea id="f_notes" rows="3"></textarea>
+      <p class="notice">By continuing, you agree that Wallet4Wealth may contact you and may store these
+        details. We never ask for account numbers, passwords or OTPs on this form.<br><br>
+        This form collects your information only — it is not advice and no recommendation is being
+        made. Mutual fund investments are subject to market risks; insurance is a subject matter
+        of solicitation.</p>
+    </section>
+
+    <section id="s6" class="hide">
+      <div class="done">
+        <div class="tick">&#10003;</div>
+        <h2 id="doneName">Thank you!</h2>
+        <p class="sub" id="doneNote">Your details have reached our team. Someone from your nearest office will be in touch.</p>
+        <button class="main" style="margin-top:8px;" onclick="makePdf()">&#11015; Download your copy (PDF)</button>
+        <p class="note">Keep this for your records. It lists only what you entered — no advice is being given.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer id="foot">
+    <div class="two">
+      <button class="main ghost hide" id="btnBack" onclick="go(step-1)">Back</button>
+      <button class="main" id="btnNext" onclick="next()">Continue</button>
+    </div>
+  </footer>
+</div>
+
+<script>
+/* ====================================================================
+   Wallet4Wealth — event / seminar intake.
+   * Four sections, saved as the person types.
+   * Every save updates THE SAME ROW in the sheet (matched on a private
+     submission id), so a half-finished form is never lost and never
+     creates duplicates — even with many people filling it at once.
+   * Columns match the bulk template in the planning panel exactly.
+   ==================================================================== */
+var SHEET_URL = "https://script.google.com/macros/s/AKfycbwVr4aAzY0RM5Q8vkINLB6PfRQykp4astrbGeLTnTLUJZ0hspkzhiT-w0lrp35-41TL/exec";
+
+var ALL_COLS = ["Branch *", "First name *", "Middle name", "Last name", "Date of birth (YYYY-MM-DD)", "Gender", "Marital status", "Occupation", "City", "PAN", "Mobile *", "Email", "Target monthly income after retirement", "Family 1 — Name", "Family 1 — Relationship", "Family 1 — Age", "Family 1 — Occupation", "Family 1 — Remarks", "Family 2 — Name", "Family 2 — Relationship", "Family 2 — Age", "Family 2 — Occupation", "Family 2 — Remarks", "Family 3 — Name", "Family 3 — Relationship", "Family 3 — Age", "Family 3 — Occupation", "Family 3 — Remarks", "Family 4 — Name", "Family 4 — Relationship", "Family 4 — Age", "Family 4 — Occupation", "Family 4 — Remarks", "Income 1 — Head", "Income 1 — Amount", "Income 1 — Frequency", "Income 1 — Remarks", "Income 2 — Head", "Income 2 — Amount", "Income 2 — Frequency", "Income 2 — Remarks", "Income 3 — Head", "Income 3 — Amount", "Income 3 — Frequency", "Income 3 — Remarks", "Savings 1 — Head", "Savings 1 — Amount", "Savings 1 — Frequency", "Savings 1 — Owner / remarks", "Savings 2 — Head", "Savings 2 — Amount", "Savings 2 — Frequency", "Savings 2 — Owner / remarks", "Savings 3 — Head", "Savings 3 — Amount", "Savings 3 — Frequency", "Savings 3 — Owner / remarks", "Expense 1 — Head", "Expense 1 — Amount", "Expense 1 — Frequency", "Expense 1 — Remarks", "Expense 2 — Head", "Expense 2 — Amount", "Expense 2 — Frequency", "Expense 2 — Remarks", "Expense 3 — Head", "Expense 3 — Amount", "Expense 3 — Frequency", "Expense 3 — Remarks", "Loan 1 — Head", "Loan 1 — Outstanding", "Loan 1 — EMI", "Loan 1 — Frequency", "Loan 1 — Remarks", "Loan 2 — Head", "Loan 2 — Outstanding", "Loan 2 — EMI", "Loan 2 — Frequency", "Loan 2 — Remarks", "Goal 1 — Goal", "Goal 1 — For", "Goal 1 — Present cost", "Goal 1 — Years", "Goal 1 — Inflation %", "Goal 1 — Remarks", "Goal 2 — Goal", "Goal 2 — For", "Goal 2 — Present cost", "Goal 2 — Years", "Goal 2 — Inflation %", "Goal 2 — Remarks", "Goal 3 — Goal", "Goal 3 — For", "Goal 3 — Present cost", "Goal 3 — Years", "Goal 3 — Inflation %", "Goal 3 — Remarks", "Goal 4 — Goal", "Goal 4 — For", "Goal 4 — Present cost", "Goal 4 — Years", "Goal 4 — Inflation %", "Goal 4 — Remarks", "Goal 5 — Goal", "Goal 5 — For", "Goal 5 — Present cost", "Goal 5 — Years", "Goal 5 — Inflation %", "Goal 5 — Remarks", "Goal 6 — Goal", "Goal 6 — For", "Goal 6 — Present cost", "Goal 6 — Years", "Goal 6 — Inflation %", "Goal 6 — Remarks", "Goal 7 — Goal", "Goal 7 — For", "Goal 7 — Present cost", "Goal 7 — Years", "Goal 7 — Inflation %", "Goal 7 — Remarks", "Insurance 1 — Product", "Insurance 1 — Insurer", "Insurance 1 — Sum assured", "Insurance 1 — Premium/yr", "Insurance 1 — PPT", "Insurance 1 — Start", "Insurance 1 — End", "Insurance 1 — Remarks", "Insurance 2 — Product", "Insurance 2 — Insurer", "Insurance 2 — Sum assured", "Insurance 2 — Premium/yr", "Insurance 2 — PPT", "Insurance 2 — Start", "Insurance 2 — End", "Insurance 2 — Remarks", "Notes"];      /* the 114 template columns, in order */
+var MAX      = {"family": 4, "income": 3, "savings": 3, "expenses": 3, "liabilities": 2, "goals": 7, "insurance": 2};      /* how many of each repeating block the template holds */
+
+var CH = {
+  gender:["Male","Female","Other"],
+  marital:["Single","Married"],
+  rel:["Spouse","Son","Daughter","Mother","Father","Other"],
+  income:["Salary","Pension","PF","NPS","Gratuity","Leave Encashment","Rental","Business","Interest","Other"],
+  expense:["Household","EMI","Rent","Insurance Premium","Education","Medical","Other"],
+  savings:["Mutual Fund","SIP","RD","PPF","EPF","NPS","FD","Post Office","Shares","Gold","Property","Savings A/c","Other"],
+  savfreq:["One-time","Monthly"],
+  goal:["Child Education","Higher Education","Child Marriage","Marriage","Buy a Car","Buy a House",
+        "Home Renovation","Vacation / Travel","Emergency Fund","Retirement","Wealth Creation",
+        "Business Setup","Medical Corpus"],
+  freq:["Monthly","Yearly","One-time"]
+};
+
+var data = {};            /* column header -> value */
+var counts = {family:1,goals:1,income:1,expenses:1,savings:1};
+var step = 1, sid = null, dirty = false, sending = false, lastSent = "";
+
+function id(x){ return document.getElementById(x); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+/* a private id for this filled-in form, kept so a refresh resumes the same row */
+function getSid(){
+  try{
+    var k="w4w_sid", v=sessionStorage.getItem(k);
+    if(!v){ v="F"+Date.now().toString(36)+Math.random().toString(36).slice(2,8); sessionStorage.setItem(k,v); }
+    return v;
+  }catch(e){ return "F"+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+}
+
+function sel(idAttr,list,ph){
+  return '<select id="'+idAttr+'"><option value="">'+(ph||"")+'</option>'+
+    list.map(function(o){return '<option>'+esc(o)+'</option>';}).join("")+'</select>';
+}
+function fld(labelText,idAttr,attrs,required){
+  return '<div class="grp" id="w_'+idAttr+'"><label class="'+(required?"req":"")+'" for="'+idAttr+'">'+
+    labelText+'</label><input id="'+idAttr+'" '+(attrs||"")+'><div class="err">Please fill this in.</div></div>';
+}
+
+/* ---------- section 1 ---------- */
+function build1(){
+  id("f1").innerHTML =
+    fld("Event / office location","f_branch",'placeholder="where you are meeting us"',true)+
+    fld("First name","f_first","",true)+
+    fld("Last name","f_last","")+
+    fld("Mobile","f_mobile",'type="tel" inputmode="tel" maxlength="10"',true)+
+    fld("Email","f_email",'type="email" inputmode="email"')+
+    '<div class="grp"><label for="f_gender">Gender</label>'+sel("f_gender",CH.gender)+'</div>'+
+    '<div class="grp"><label for="f_dob">Date of birth</label><input id="f_dob" type="date"></div>'+
+    '<div class="grp"><label for="f_occ">Occupation</label><input id="f_occ"></div>';
+}
+/* ---------- repeating blocks ---------- */
+function blockHtml(kind,i){
+  var n=i+1, t="";
+  if(kind==="family"){
+    t='<div class="no">Family member '+n+'</div>'+
+      '<label>Name</label><input id="fam_name_'+i+'">'+
+      '<div class="row"><div><label>Relationship</label>'+sel("fam_rel_"+i,CH.rel)+'</div>'+
+      '<div><label>Age</label><input id="fam_age_'+i+'" inputmode="numeric"></div></div>';
+  }else if(kind==="goals"){
+    t='<div class="no">Goal '+n+'</div>'+
+      '<label>What for</label>'+sel("goal_name_"+i,CH.goal,"pick a goal")+
+      '<div class="row"><div><label>Cost today (₹)</label><input id="goal_cost_'+i+'" inputmode="numeric"></div>'+
+      '<div><label>In how many years</label><input id="goal_yrs_'+i+'" inputmode="numeric"></div></div>';
+  }else if(kind==="income"){
+    t='<div class="no">Income '+n+'</div>'+
+      '<label>Source</label>'+sel("inc_head_"+i,CH.income)+
+      '<div class="row"><div><label>Amount (₹)</label><input id="inc_amt_'+i+'" inputmode="numeric"></div>'+
+      '<div><label>How often</label>'+sel("inc_freq_"+i,CH.freq)+'</div></div>';
+  }else if(kind==="savings"){
+    t='<div class="no">Saving / investment '+n+'</div>'+
+      '<label>Type</label>'+sel("sav_head_"+i,CH.savings)+
+      '<div class="row"><div><label>Amount (₹)</label><input id="sav_amt_'+i+'" inputmode="numeric"></div>'+
+      '<div><label>How often</label>'+sel("sav_freq_"+i,CH.savfreq)+'</div></div>';
+  }else{
+    t='<div class="no">Expense '+n+'</div>'+
+      '<label>Head</label>'+sel("exp_head_"+i,CH.expense)+
+      '<div class="row"><div><label>Amount (₹)</label><input id="exp_amt_'+i+'" inputmode="numeric"></div>'+
+      '<div><label>How often</label>'+sel("exp_freq_"+i,CH.freq)+'</div></div>';
+  }
+  var del = (n>1) ? '<button class="del" onclick="delRow(\''+kind+'\','+i+')">Remove</button>' : '';
+  return '<div class="card" id="'+kind+'_card_'+i+'">'+del+t+'</div>';
+}
+function wrapOf(kind){
+  return id(kind==="family"?"famWrap":kind==="goals"?"goalWrap":kind==="income"?"incWrap":kind==="savings"?"savWrap":"expWrap");
+}
+function render(kind){
+  var w=wrapOf(kind), html="";
+  for(var i=0;i<counts[kind];i++) html+=blockHtml(kind,i);
+  w.innerHTML=html;
+  restore(kind);
+  bind(w);
+}
+function addRow(kind){
+  var cap=MAX[kind]||3;
+  if(counts[kind]>=cap){ alert("You can add up to "+cap+" here. Please tell us the rest when we meet."); return; }
+  collect(); counts[kind]++; render(kind); touch();
+}
+function delRow(kind,i){
+  collect();
+  /* shift everything after the removed card up by one */
+  var keys=fieldKeys(kind);
+  for(var j=i;j<counts[kind]-1;j++)
+    keys.forEach(function(k){ data[colName(kind,j,k)]=data[colName(kind,j+1,k)]||""; });
+  keys.forEach(function(k){ data[colName(kind,counts[kind]-1,k)]=""; });
+  counts[kind]--; if(counts[kind]<1) counts[kind]=1;
+  render(kind); touch();
+}
+/* map a block field to its template column */
+function fieldKeys(kind){
+  return kind==="family"?["Name","Relationship","Age"]
+    : kind==="goals"?["Goal","Present cost","Years"]
+    : ["Head","Amount","Frequency"];
+}
+function colName(kind,i,k){
+  var p = kind==="family"?"Family":kind==="goals"?"Goal":kind==="income"?"Income":kind==="savings"?"Savings":"Expense";
+  return p+" "+(i+1)+" — "+k;
+}
+function elOf(kind,i,k){
+  if(kind==="family") return id(k==="Name"?"fam_name_"+i:k==="Relationship"?"fam_rel_"+i:"fam_age_"+i);
+  if(kind==="goals")  return id(k==="Goal"?"goal_name_"+i:k==="Present cost"?"goal_cost_"+i:"goal_yrs_"+i);
+  if(kind==="income") return id(k==="Head"?"inc_head_"+i:k==="Amount"?"inc_amt_"+i:"inc_freq_"+i);
+  if(kind==="savings") return id(k==="Head"?"sav_head_"+i:k==="Amount"?"sav_amt_"+i:"sav_freq_"+i);
+  return id(k==="Head"?"exp_head_"+i:k==="Amount"?"exp_amt_"+i:"exp_freq_"+i);
+}
+function restore(kind){
+  for(var i=0;i<counts[kind];i++) fieldKeys(kind).forEach(function(k){
+    var el=elOf(kind,i,k), v=data[colName(kind,i,k)];
+    if(el&&v!=null) el.value=v;
+  });
+}
+/* ---------- collect everything into template columns ---------- */
+var SIMPLE=[["f_branch","Branch *"],["f_first","First name *"],["f_last","Last name"],
+  ["f_mobile","Mobile *"],["f_email","Email"],["f_gender","Gender"],
+  ["f_dob","Date of birth (YYYY-MM-DD)"],["f_occ","Occupation"],["f_notes","Notes"]];
+function collect(){
+  SIMPLE.forEach(function(p){ var el=id(p[0]); if(el) data[p[1]]=(el.value||"").trim(); });
+  ["family","goals","income","expenses","savings"].forEach(function(kind){
+    for(var i=0;i<counts[kind];i++) fieldKeys(kind).forEach(function(k){
+      var el=elOf(kind,i,k); if(el) data[colName(kind,i,k)]=(el.value||"").trim();
+    });
+  });
+}
+/* ---------- autosave: same row every time ---------- */
+function touch(){ dirty=true; setStatus("pending"); schedule(); }
+var timer=null, confirmed=false, failures=0;
+
+/* Status the person (and the RM standing next to them) can trust.
+   "Saved" is shown ONLY when the sheet actually confirmed the write. */
+function setStatus(state,extra){
+  var el=id("saveMsg"); if(!el) return;
+  var map={ pending:"Not saved yet…", saving:"Saving…", saved:"Saved \u2713",
+            retry:"Couldn't reach the server — retrying…",
+            unconfirmed:"Sent, but not confirmed" };
+  el.textContent=(map[state]||"")+(extra?(" "+extra):"");
+  el.style.color = state==="saved" ? "#9fe3b5" : (state==="retry"||state==="unconfirmed") ? "#ffc9a8" : "#cfe0d6";
+}
+function schedule(ms){ clearTimeout(timer); timer=setTimeout(function(){ push(); },ms||1500); }
+
+function payload(final){
+  collect();
+  var row=ALL_COLS.map(function(h){ return data[h]!=null?data[h]:""; });
+  return JSON.stringify({sid:sid,cols:ALL_COLS,row:row,final:!!final,at:new Date().toISOString()});
+}
+/* Send and WAIT FOR THE SHEET TO CONFIRM.
+   Content-Type is text/plain so the browser treats this as a simple request —
+   no preflight, which Apps Script cannot answer — and the JSON reply is
+   readable, so we can tell a real save from a silent failure. */
+function push(final,onDone){
+  /* If a save is already in flight, DON'T drop this one — wait and try again,
+     carrying the callback with it. (Losing the callback here is what made the
+     Submit button stick on "Submitting…".) */
+  if(sending){ setTimeout(function(){ push(final,onDone); },700); return; }
+
+  var body=payload(final);
+  if(body===lastSent && !final && confirmed){ dirty=false; if(onDone) onDone(true); return; }
+
+  sending=true; setStatus("saving");
+  var settled=false;
+  function finish(ok,err,unconfirmed){
+    if(settled) return; settled=true; sending=false;
+    if(ok){
+      lastSent=body; dirty=false; confirmed=!unconfirmed; failures=0; clearPending();
+      setStatus(unconfirmed?"unconfirmed":"saved");
+    }else{
+      failures++; confirmed=false; keepPending(body);
+      setStatus(failures>2?"unconfirmed":"retry");
+      if(failures<6 && !final) schedule(Math.min(2000*failures,10000));
+    }
+    if(onDone) onDone(ok,err);
+  }
+  /* never let a hung request block the person — 20s and we move on */
+  var bail=setTimeout(function(){ sendBlind(body,finish); },20000);
+
+  fetch(SHEET_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:body})
+    .then(function(r){ return r.text(); })
+    .then(function(txt){
+      clearTimeout(bail);
+      var res={}; try{ res=JSON.parse(txt); }catch(e){}
+      if(res && res.ok) finish(true);
+      else throw new Error((res && res.error) || "sheet did not confirm");
+    })
+    .catch(function(err){
+      clearTimeout(bail);
+      /* A TypeError here is the browser blocking the reply (CORS), not a failed
+         write — Apps Script often answers this way. Send it again in no-cors
+         mode so the row still lands, and say plainly that it isn't confirmed. */
+      if(err && err.name==="TypeError") sendBlind(body,finish,err);
+      else finish(false,err);
+    });
+}
+/* last resort: fire-and-forget. The row is written but the browser can't read
+   the reply, so we report it as sent-but-unconfirmed rather than "Saved". */
+function sendBlind(body,finish,origErr){
+  fetch(SHEET_URL,{method:"POST",mode:"no-cors",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},body:body})
+    .then(function(){ finish(true,origErr,true); })
+    .catch(function(e){ finish(false,e); });
+}
+/* A copy on the device until the sheet confirms, so nothing is lost if the
+   venue wifi drops mid-form. Re-sent automatically when we come back online. */
+function keepPending(body){ try{ localStorage.setItem("w4w_pending_"+sid,body); }catch(e){} }
+function clearPending(){ try{ localStorage.removeItem("w4w_pending_"+sid); }catch(e){} }
+function flushPending(){
+  try{
+    var raw=localStorage.getItem("w4w_pending_"+sid);
+    if(raw && !sending) push();
+  }catch(e){}
+}
+window.addEventListener("online",function(){ setStatus("retry"); flushPending(); });
+
+function bind(root){
+  (root||document).querySelectorAll("input,select,textarea").forEach(function(el){
+    if(el.dataset.bound) return; el.dataset.bound="1";
+    el.addEventListener("input",touch); el.addEventListener("change",touch);
+  });
+}
+/* ---------- steps ---------- */
+function go(n){
+  if(n<1) n=1;
+  step=n;
+  for(var i=1;i<=6;i++){ var s=id("s"+i); if(s) s.className = (i===n)?"":"hide"; }
+  for(var j=1;j<=5;j++){ var d=id("p"+j); if(d) d.className = (j<=n)?"on":""; }
+  id("btnBack").className = (n===1||n===6)?"main ghost hide":"main ghost";
+  id("btnNext").textContent = (n===5)?"Submit":"Continue";
+  id("foot").style.display = (n===6)?"none":"";
+  window.scrollTo(0,0);
+}
+function flag(idAttr,bad){ var w=id("w_"+idAttr); if(w) w.className = bad?"grp bad":"grp"; }
+function validate1(){
+  collect(); var ok=true;
+  [["f_branch","Branch *"],["f_first","First name *"]].forEach(function(p){
+    var bad=!data[p[1]]; flag(p[0],bad); if(bad) ok=false; });
+  var m=(data["Mobile *"]||"").replace(/\D/g,"");
+  if(m.length!==10){ flag("f_mobile",true); ok=false; } else flag("f_mobile",false);
+  var e=data["Email"]||"";
+  var badMail = e && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
+  flag("f_email",badMail); if(badMail) ok=false;
+  return ok;
+}
+function next(){
+  if(step===1){ if(!validate1()) return; push(); go(2); return; }
+  if(step<5){ collect(); push(); go(step+1); return; }
+  /* final submit: wait for the sheet to confirm before saying "thank you" */
+  collect();
+  var btn=id("btnNext"); btn.disabled=true; btn.textContent="Submitting…";
+  push(true,function(ok,err){
+    btn.disabled=false; btn.textContent="Submit";
+    if(ok){
+      id("doneName").textContent="Thank you, "+((data["First name *"]||"").split(" ")[0]||"")+"!";
+      id("doneNote").textContent = confirmed
+        ? "Your details have reached our team. Someone from your nearest office will be in touch."
+        : "Your details have been sent. If you can, please show this screen to our team member before you leave.";
+      go(6);
+    }else{
+      if(!id("submitErr")){
+        var d=document.createElement("div");
+        d.id="submitErr"; d.style.cssText="margin-top:12px;color:#C0392B;font-size:12.5px;line-height:1.45;";
+        id("s5").appendChild(d);
+      }
+      id("submitErr").innerHTML="We couldn't confirm your details were saved"+
+        (err&&err.message?(" ("+esc(err.message)+")"):"")+
+        ". Your answers are safe on this device — please check the connection and press Submit again."+
+        " If it keeps failing, please show this screen to our team member.";
+    }
+  });
+}
+/* ---------- the client's own copy ---------- */
+function rowsHtml(kind,title,keys){
+  var out="",any=false;
+  for(var i=0;i<counts[kind];i++){
+    var vals=keys.map(function(k){ return data[colName(kind,i,k)]||""; });
+    if(!vals.some(function(v){return v;})) continue;
+    any=true;
+    out+='<tr>'+vals.map(function(v){return '<td>'+esc(v)+'</td>';}).join("")+'</tr>';
+  }
+  if(!any) return "";
+  return '<h3>'+title+'</h3><table><thead><tr>'+keys.map(function(k){return '<th>'+esc(k)+'</th>';}).join("")+
+    '</tr></thead><tbody>'+out+'</tbody></table>';
+}
+function makePdf(){
+  collect();
+  var css='<style>body{font-family:Arial,sans-serif;color:#141821;font-size:12px;}'+
+    'h1{color:#0F2C60;font-size:19px;margin:0;} .t{color:#E8551F;font-size:11px;margin:2px 0 14px;}'+
+    'h3{color:#0F2C60;font-size:13px;margin:14px 0 5px;border-bottom:1px solid #D8DEE8;padding-bottom:3px;}'+
+    'table{width:100%;border-collapse:collapse;margin-bottom:6px;}'+
+    'th{background:#0F2C60;color:#fff;text-align:left;padding:5px 7px;font-size:10.5px;}'+
+    'td{border:1px solid #C9D2E0;padding:5px 7px;font-size:11.5px;}'+
+    '.kv td:first-child{background:#EDEFF3;font-weight:600;width:42%;}'+
+    '.foot{margin-top:16px;border-top:1px solid #D8DEE8;padding-top:7px;font-size:9.5px;color:#6B7480;}</style>';
+  var kv=[["Event / office location","Branch *"],["Name","__name"],["Mobile","Mobile *"],["Email","Email"],
+          ["Gender","Gender"],["Date of birth","Date of birth (YYYY-MM-DD)"],["Occupation","Occupation"]];
+  var kvHtml=kv.map(function(p){
+    var v = p[1]==="__name" ? [data["First name *"],data["Last name"]].filter(Boolean).join(" ") : (data[p[1]]||"");
+    return v ? '<tr><td>'+esc(p[0])+'</td><td>'+esc(v)+'</td></tr>' : "";
+  }).join("");
+  var html=css+'<h1>wallet4wealth</h1><div class="t">Delivering Prosperity</div>'+
+    '<h3>Your details</h3><table class="kv"><tbody>'+kvHtml+'</tbody></table>'+
+    rowsHtml("family","Your family",["Name","Relationship","Age"])+
+    rowsHtml("goals","Your goals",["Goal","Present cost","Years"])+
+    rowsHtml("income","Money coming in",["Head","Amount","Frequency"])+
+    rowsHtml("expenses","Money going out",["Head","Amount","Frequency"])+
+    rowsHtml("savings","What you have saved",["Head","Amount","Frequency"])+
+    (data["Notes"]?'<h3>Notes</h3><table><tbody><tr><td>'+esc(data["Notes"])+'</td></tr></tbody></table>':"")+
+    '<div class="foot">This is a copy of the details you gave us on '+new Date().toLocaleDateString("en-IN")+
+    '. It is a record of your inputs only — it is not financial advice and no recommendation is being made. '+
+    'Mutual fund investments are subject to market risks; insurance is a subject matter of solicitation.</div>';
+  var holder=document.createElement("div");
+  holder.style.cssText="position:fixed;left:-10000px;top:0;width:760px;padding:26px;background:#fff;";
+  holder.innerHTML=html; document.body.appendChild(holder);
+  var name=((data["First name *"]||"details")+"_"+(data["Last name"]||"")).replace(/\s+/g,"_")+"_wallet4wealth.pdf";
+  if(typeof html2pdf==="undefined"){ alert("Couldn't load the PDF tool. Please check your connection."); holder.remove(); return; }
+  html2pdf().set({margin:12,filename:name,image:{type:"jpeg",quality:.95},
+    html2canvas:{scale:2},jsPDF:{unit:"pt",format:"a4",orientation:"portrait"}})
+    .from(holder).save().then(function(){ holder.remove(); })
+    .catch(function(){ holder.remove(); alert("Could not build the PDF."); });
+}
+/* ---------- start ---------- */
+sid=getSid();
+build1(); ["family","goals","income","expenses","savings"].forEach(render);
+bind(document); go(1); setStatus("pending"); flushPending();
+window.addEventListener("beforeunload",function(){ if(dirty) keepPending(payload(false)); });
+</script>
+</body></html>

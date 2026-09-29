@@ -103,6 +103,12 @@
         <div class="tick">&#10003;</div>
         <h2 id="doneName">Thank you!</h2>
         <p class="sub" id="doneNote">Your details have reached our team. Someone from your nearest office will be in touch.</p>
+        <div id="doneWarn" class="hide" style="margin:10px 0;padding:10px 12px;background:#FFF6E5;
+             border:1px solid #E8C97A;border-radius:9px;font-size:12.5px;color:#7A5B12;text-align:left;">
+          <b>Not yet confirmed.</b> Your details were sent but our server didn't confirm it.
+          Please tap the button below, or show this screen to our team member before you leave.
+          <button class="main" style="margin-top:8px;background:#B7791F;" onclick="retrySave()">Try saving again</button>
+        </div>
         <button class="main" style="margin-top:8px;" onclick="makePdf()">&#11015; Download your copy (PDF)</button>
         <p class="note">Keep this for your records. It lists only what you entered — no advice is being given.</p>
       </div>
@@ -285,6 +291,7 @@ function setStatus(state,extra){
   var el=id("saveMsg"); if(!el) return;
   var map={ pending:"Not saved yet…", saving:"Saving…", saved:"Saved \u2713",
             retry:"Couldn't reach the server — retrying…",
+            offline:"No internet — not saved yet",
             unconfirmed:"Sent, but not confirmed" };
   el.textContent=(map[state]||"")+(extra?(" "+extra):"");
   el.style.color = state==="saved" ? "#9fe3b5" : (state==="retry"||state==="unconfirmed") ? "#ffc9a8" : "#cfe0d6";
@@ -309,6 +316,11 @@ function push(final,onDone){
   var body=payload(final);
   if(body===lastSent && !final && confirmed){ dirty=false; if(onDone) onDone(true); return; }
 
+  if(navigator.onLine===false){
+    keepPending(body); setStatus("offline");
+    if(onDone) onDone(false,new Error("no internet connection"));
+    return;
+  }
   sending=true; setStatus("saving");
   var settled=false;
   function finish(ok,err,unconfirmed){
@@ -332,10 +344,13 @@ function push(final,onDone){
       clearTimeout(bail);
       var res={}; try{ res=JSON.parse(txt); }catch(e){}
       if(res && res.ok) finish(true);
-      else throw new Error((res && res.error) || "sheet did not confirm");
+      else throw new Error((res && res.error) || "the server did not confirm the save");
     })
     .catch(function(err){
       clearTimeout(bail);
+      if(navigator.onLine===false){ keepPending(body); setStatus("offline");
+        if(!settled){ settled=true; sending=false; if(onDone) onDone(false,new Error("no internet connection")); }
+        return; }
       /* A TypeError here is the browser blocking the reply (CORS), not a failed
          write — Apps Script often answers this way. Send it again in no-cors
          mode so the row still lands, and say plainly that it isn't confirmed. */
@@ -404,7 +419,8 @@ function next(){
       id("doneName").textContent="Thank you, "+((data["First name *"]||"").split(" ")[0]||"")+"!";
       id("doneNote").textContent = confirmed
         ? "Your details have reached our team. Someone from your nearest office will be in touch."
-        : "Your details have been sent. If you can, please show this screen to our team member before you leave.";
+        : "Your details have been sent, but we could not confirm it.";
+      id("doneWarn").className = confirmed ? "hide" : "";
       go(6);
     }else{
       if(!id("submitErr")){
@@ -412,10 +428,12 @@ function next(){
         d.id="submitErr"; d.style.cssText="margin-top:12px;color:#C0392B;font-size:12.5px;line-height:1.45;";
         id("s5").appendChild(d);
       }
-      id("submitErr").innerHTML="We couldn't confirm your details were saved"+
-        (err&&err.message?(" ("+esc(err.message)+")"):"")+
-        ". Your answers are safe on this device — please check the connection and press Submit again."+
-        " If it keeps failing, please show this screen to our team member.";
+      var why=(err&&err.message&&/fetch|network|internet/i.test(err.message))
+        ? "We couldn't reach our server — the internet connection looks down."
+        : "We couldn't confirm your details were saved.";
+      id("submitErr").innerHTML=why+" Nothing has been lost — your answers are still on this device."+
+        " Please check the connection and press <b>Submit</b> again."+
+        " If it keeps failing, show this screen to our team member.";
     }
   });
 }
@@ -431,6 +449,17 @@ function rowsHtml(kind,title,keys){
   if(!any) return "";
   return '<h3>'+title+'</h3><table><thead><tr>'+keys.map(function(k){return '<th>'+esc(k)+'</th>';}).join("")+
     '</tr></thead><tbody>'+out+'</tbody></table>';
+}
+function retrySave(){
+  setStatus("saving");
+  push(true,function(ok){
+    if(ok && confirmed){
+      id("doneWarn").className="hide";
+      id("doneNote").textContent="Your details have reached our team. Someone from your nearest office will be in touch.";
+    }else{
+      alert("Still couldn't confirm. Please check the connection, or show this screen to our team member.");
+    }
+  });
 }
 function makePdf(){
   collect();
@@ -459,15 +488,32 @@ function makePdf(){
     '<div class="foot">This is a copy of the details you gave us on '+new Date().toLocaleDateString("en-IN")+
     '. It is a record of your inputs only — it is not financial advice and no recommendation is being made. '+
     'Mutual fund investments are subject to market risks; insurance is a subject matter of solicitation.</div>';
-  var holder=document.createElement("div");
-  holder.style.cssText="position:fixed;left:-10000px;top:0;width:760px;padding:26px;background:#fff;";
-  holder.innerHTML=html; document.body.appendChild(holder);
   var name=((data["First name *"]||"details")+"_"+(data["Last name"]||"")).replace(/\s+/g,"_")+"_wallet4wealth.pdf";
-  if(typeof html2pdf==="undefined"){ alert("Couldn't load the PDF tool. Please check your connection."); holder.remove(); return; }
+  if(typeof html2pdf==="undefined"){ alert("Couldn't load the PDF tool. Please check your connection."); return; }
+  /* The page must actually be ON SCREEN while it is captured. Parking it far
+     off-screen (left:-10000px) makes html2canvas capture nothing, which is why
+     the download came out blank. So we lay it out at the top-left, hidden
+     behind a white cover, and remove both as soon as the PDF is built. */
+  var cover=document.createElement("div");
+  cover.style.cssText="position:fixed;inset:0;background:#fff;z-index:9998;"+
+    "display:flex;align-items:center;justify-content:center;font:600 15px 'Segoe UI',Arial;color:#0F2C60;";
+  cover.textContent="Preparing your PDF…";
+  var holder=document.createElement("div");
+  /* html2canvas reports height 0 for absolutely / fixed positioned elements, which
+     is what made this PDF come out blank. The element must sit in NORMAL FLOW to
+     be measured, so it is appended plainly and hidden behind the cover above. */
+  holder.style.cssText="width:760px;padding:26px;background:#fff;";
+  holder.innerHTML=html;
+  document.body.appendChild(holder);
+  document.body.appendChild(cover);
+  function cleanup(){ try{ holder.remove(); cover.remove(); }catch(e){} }
   html2pdf().set({margin:12,filename:name,image:{type:"jpeg",quality:.95},
-    html2canvas:{scale:2},jsPDF:{unit:"pt",format:"a4",orientation:"portrait"}})
-    .from(holder).save().then(function(){ holder.remove(); })
-    .catch(function(){ holder.remove(); alert("Could not build the PDF."); });
+    html2canvas:{scale:2,scrollX:0,scrollY:0,windowWidth:820,useCORS:true,backgroundColor:"#ffffff"},
+    jsPDF:{unit:"pt",format:"a4",orientation:"portrait"},
+    pagebreak:{mode:["css","legacy"]}})
+    .from(holder).save()
+    .then(function(){ cleanup(); })
+    .catch(function(){ cleanup(); alert("Could not build the PDF. Please try again."); });
 }
 /* ---------- start ---------- */
 sid=getSid();

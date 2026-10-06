@@ -541,10 +541,15 @@ body{touch-action:manipulation;-webkit-text-size-adjust:100%}
 #dots{display:flex;gap:4px;flex:0 0 auto}
 .dot{min-width:25px;height:25px;padding:0;border:1px solid rgba(200,215,234,.26);border-radius:5px;
   background:transparent;color:#c8d7ea;font:700 11px/1 var(--sans);cursor:pointer}
-.dot[aria-current="true"]{background:#F0691A;border-color:#F0691A;color:#fff}
+.dot[aria-current="true"]{background:#F0691A;border-color:#F0691A;color:#fff;
+  box-shadow:0 0 0 2px rgba(240,105,26,.35)}
+#count{font:700 11px/1 var(--sans);color:#c8d7ea;padding:0 10px;white-space:nowrap;flex:0 0 auto}
+#pageno{position:absolute;right:22px;top:16px;z-index:4;font:700 12px/1 var(--sans);
+  letter-spacing:.16em;color:var(--tx2);opacity:.75}
+#pageno b{color:var(--orange);font-size:15px;letter-spacing:0}
 #count{font:600 11px/1 var(--sans);letter-spacing:.14em;color:#8ea3c2}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-delay:0ms!important}}
-</style></head><body><div id="shell"><div id="stagewrap"><div id="scaler"><div id="stage"><div id="bg"></div><div id="bgd"></div><section class="slide" id="s1">
+</style></head><body><div id="shell"><div id="stagewrap"><div id="scaler"><div id="stage"><div id="bg"></div><div id="bgd"></div><div id="pageno"></div><section class="slide" id="s1">
   <div class="logo fx fx-fade" style="animation-delay:.15s"><span class="lmk dk"></span><span class="lmk lt"></span></div>
   <div class="rule fx fx-wipe" style="animation-delay:.65s"></div>
   <h1 class="title">
@@ -831,7 +836,7 @@ body{touch-action:manipulation;-webkit-text-size-adjust:100%}
   <div class="plogo logo fx fx-fade" style="animation-delay:1.7s">
     <span class="lmk dk"></span>
     <span class="lmk lt"></span></div>
-</section></div></div></div><div id="bar"><button id="prev" aria-label="Previous">◀</button><button id="next" aria-label="Next">▶</button><div id="dots"></div><button class="tab" data-t="light">Light</button><button class="tab" data-t="dark">Dark</button><button id="fs">Full screen</button></div></div><script>
+</section></div></div></div><div id="bar"><button id="prev" aria-label="Previous">◀</button><button id="next" aria-label="Next">▶</button><div id="dots"></div><button class="tab" data-t="light">Light</button><button class="tab" data-t="dark">Dark</button><span id="count"></span><button id="fs">Full screen</button></div></div><script>
 const slides=[...document.querySelectorAll(".slide")];
 const dots=document.getElementById("dots");
 let i=0,playing=false,timer=null;
@@ -851,6 +856,10 @@ function go(n){i=(n+slides.length)%slides.length;
       setTimeout(()=>s.classList.remove("leaving"),850)}
     s.classList.toggle("active",k===i)});
   [...dots.children].forEach((d,k)=>d.setAttribute("aria-current",k===i));
+  const pn=document.getElementById("pageno");
+  if(pn) pn.innerHTML="<b>"+(i+1)+"</b> / "+slides.length;
+  const ct=document.getElementById("count");
+  if(ct) ct.textContent="Page "+(i+1)+" of "+slides.length;
 
   counters(slides[i])}
 function replay(){const c=i;slides.forEach(s=>s.classList.remove("active","leaving"));

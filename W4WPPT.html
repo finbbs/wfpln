@@ -676,7 +676,7 @@ body{touch-action:manipulation;-webkit-text-size-adjust:100%}
 </section><section class="slide" id="s12">
   <div class="eyebrow fx fx-wipe" style="animation-delay:.15s">Thirty-four years of Indian equity</div>
   <h1 class="ptitle"><span class="ln"><span class="fx fx-wipe" style="animation-delay:.35s">Every crisis felt final. <span class="thin">None of them were.</span></span></span></h1>
-  <div class="psub fx fx-rise" style="animation-delay:.6s">BSE Sensex, year-end close. Click any year below to see what happened and what it was worth afterwards.</div>
+  <div class="psub fx fx-rise" style="animation-delay:.6s"></div>
   <div id="scale" class="fx fx-fade" style="animation-delay:.55s">
     <span id="live"></span></div>
   <div id="chart" class="fx fx-fade" style="animation-delay:.8s"><div id="tip12"></div></div>
@@ -1185,7 +1185,7 @@ function boot(){
   }
   const wm=SENSEX[LAST]/SENSEX[worstY], wn=LAST-worstY;
   const wc=(Math.pow(wm,1/Math.max(1,wn))-1)*100;
-  document.querySelector(".psub").innerHTML=
+  document.querySelector("#s12 .psub").innerHTML=
     'All <b>'+falls+'</b> <b style="color:#C0392B">red falls</b> became entry points. The worst, <b>'+
     worstY+'</b>, fell <b>'+Math.round(worstDrop*100)+'%</b> and returned <b>'+wm.toFixed(1)+
     '\u00D7</b> since. Hover any label for the event and what \u20B91 lakh grew to.';

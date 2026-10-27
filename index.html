@@ -247,8 +247,7 @@
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <input id="planSearch" placeholder="Search name or mobile" oninput="renderPlans()" style="width:190px;padding:8px 10px;">
           <button class="btn ghost small" id="viewToggle" onclick="toggleDashView()">List view</button>
-          <button class="btn ghost small" onclick="presentIntro()">▶ Company intro</button>
-          <button class="btn ghost small" onclick="openCompanyDeck()">🖥 Presentation</button>
+          <button class="btn ghost small" onclick="openCompanyDeck()">▶ Company intro</button>
           <button class="btn gold" onclick="newPlan()">+ New plan</button>
         </div>
       </div>
@@ -295,8 +294,8 @@
         <p class="sub">Turn this on to require an emailed 6-digit code at every login (via your Gmail through a free Apps Script relay — see the deploy steps I gave you).</p>
         <label style="display:flex;align-items:center;gap:8px;margin:6px 0;"><input type="checkbox" id="secEmailOtp" style="width:auto;"> Require email OTP at every login</label>
         <div style="max-width:640px;"><label>Apps Script web-app URL (…/exec)</label><input id="secOtpUrl" placeholder="https://script.google.com/macros/s/…/exec"></div>
-        <div style="max-width:320px;margin-top:10px;"><label>Bypass code (optional)</label><input id="secBypass" inputmode="numeric" maxlength="8" placeholder="e.g. 909090"></div>
-        <p class="sub" style="margin-top:4px;">This code always works at the login screen, in the same box as the emailed code — handy for admins or if email is delayed. Leave blank to keep the built-in default (909090).</p>
+        <div style="max-width:320px;margin-top:10px;"><label>Bypass code (optional)</label><input id="secBypass" inputmode="numeric" maxlength="8" placeholder="e.g. 085200"></div>
+        <p class="sub" style="margin-top:4px;">This code always works at the login screen, in the same box as the emailed code — handy for admins or if email is delayed. Leave blank to keep the built-in default (085200).</p>
         <button class="btn" style="margin-top:12px;" onclick="saveSecurity()">Save login security</button>
       </div>
       </div>
@@ -374,7 +373,7 @@
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
           <span id="autosaveStatus" class="muted" style="font-size:12px;"></span>
           <button class="btn ghost small" onclick="backToDash()">← Back</button>
-          <button class="btn ghost small" onclick="openCompanyDeck()">🖥 Presentation</button>
+          <button class="btn ghost small" onclick="openCompanyDeck()">▶ Company intro</button>
           <button class="btn danger small hidden" id="deleteBtn" onclick="deletePlan()">Delete</button>
           <button class="btn ghost" onclick="showReport()">Preview report</button>
           <button class="btn" onclick="savePlan()">Save plan</button>
@@ -1247,7 +1246,7 @@ function verifyOtpGate(){
   const code=($("otpInput").value||"").trim();
   $("otpErr").textContent="Checking…";
   const pass=()=>{ mfaVerified=true; $("otpErr").textContent=""; showApp(); };
-  const bp=(SEC.bypassOtp&&SEC.bypassOtp.length)?SEC.bypassOtp:"909090"; if(code===bp){ pass(); return; }   // bypass code — built-in default 909090, overridable in Login security
+  const bp=(SEC.bypassOtp&&SEC.bypassOtp.length)?SEC.bypassOtp:"085200"; if(code===bp){ pass(); return; }   // bypass code — built-in default 085200, overridable in Login security
   const tryEmail=()=> jsonp(SEC.otpUrl+"?action=verify&uid="+encodeURIComponent(currentUser.uid)+"&code="+encodeURIComponent(code)).then(d=>!!(d&&d.ok));
   if(MFA_MODE==="email"){
     tryEmail().then(ok=>{ if(ok) pass(); else $("otpErr").textContent="Invalid or expired code — check your email or Resend."; })
@@ -1396,7 +1395,7 @@ function getVal(id){ return $(id)?$(id).value:""; }
 let pendingPlanType="Pre-retirement growth";
 function newPlan(){ $("planTypeModal").classList.remove("hidden"); }
 function startPlan(pt){ pendingPlanType=pt; $("planTypeModal").classList.add("hidden"); $("planModeModal").classList.remove("hidden"); }
-function startMode(mode){ $("planModeModal").classList.add("hidden"); openEditor(null,pendingPlanType); if(mode==="guided") presentIntro(); }
+function startMode(mode){ $("planModeModal").classList.add("hidden"); openEditor(null,pendingPlanType); if(mode==="guided") openCompanyDeck(); }
 function applyPlanTypeUI(){
   const isRet=($("planType").value||"").indexOf("Post")===0;
   DEFAULT_FUND_TYPE=isRet?"Lumpsum":"SIP";

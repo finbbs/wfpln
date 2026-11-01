@@ -376,6 +376,7 @@
         <button data-sg="assump" onclick="showSetup('assump')">Assumptions</button>
         <button data-sg="brand" onclick="showSetup('brand')">Branding</button>
         <button data-sg="funds" onclick="showSetup('funds')">Fund master</button>
+        <button data-sg="ai" onclick="showSetup('ai')">AI assistant</button>
         <button data-sg="sec" onclick="showSetup('sec')">Security</button>
         <button data-sg="backup" onclick="showSetup('backup')">Backup</button>
       </div>
@@ -451,6 +452,23 @@
         <h3 style="margin-top:22px;">Restore from a backup file</h3>
         <p class="sub">Pick a backup file and you can put back <b>one client</b> or the whole database. Records with the same ID are replaced with the backup version; anything created since then is left alone, and nothing is ever deleted.</p>
         <label class="btn ghost small" style="margin:0;">Choose backup file<input type="file" accept=".json" onchange="restoreBackup(this)" style="display:none;"></label>
+      </div>
+      </div>
+      <div id="sg-ai" class="sgrp hidden">
+      <div class="panel">
+        <h3>AI assistant (OpenAI / ChatGPT)</h3>
+        <p class="sub">Let the assistant draft your "Our Remarks" and propose fund allocations for each goal from your fund basket — matched to the client's time horizon, risk and your current market view, in your advisory style. Your API key is stored only on this device and is never uploaded.</p>
+        <label style="display:flex;align-items:center;gap:8px;margin:6px 0;font-weight:500;"><input type="checkbox" id="aiEnabled" style="width:auto;"> Turn on the AI buttons in the plan editor</label>
+        <div style="max-width:620px;margin-top:8px;">
+          <label>OpenAI API key <span class="muted" style="font-weight:400;">(stored on this device only)</span></label>
+          <div style="display:flex;gap:8px;align-items:center;"><input id="aiKey" type="password" placeholder="sk-..." autocomplete="off" style="flex:1;"><button class="btn small" onclick="saveAiKey()">Save key</button></div>
+          <span id="aiKeyState" class="muted" style="font-size:12px;"></span>
+        </div>
+        <div style="max-width:320px;margin-top:10px;"><label>Model</label><input id="aiModel" list="aiModelList" placeholder="gpt-4o-mini"><datalist id="aiModelList"><option>gpt-4o-mini</option><option>gpt-4o</option><option>gpt-4.1-mini</option><option>gpt-4.1</option></datalist></div>
+        <div style="margin-top:12px;max-width:760px;"><label>Your fund-advisory style (the house style the AI should follow)</label><textarea id="aiStyle" rows="4" placeholder="e.g. SIP for long-term goals; flexi/multi-cap as the core; balanced-advantage for 3–5 yr goals; arbitrage/debt for under 3 yr; stagger large lumpsums via STP. Tone: simple, reassuring, no jargon."></textarea></div>
+        <div style="margin-top:10px;max-width:760px;"><label>Current market view (optional)</label><textarea id="aiMarket" rows="2" placeholder="e.g. Markets near highs — prefer hybrid/large-cap and stagger lumpsums over 3–6 months via STP."></textarea></div>
+        <div style="margin-top:12px;"><button class="btn" onclick="saveAI()">Save AI settings</button> <button class="btn ghost" onclick="aiTest()">Test connection</button></div>
+        <p class="sub" style="margin-top:10px;">The key is used directly from the browser to OpenAI. Keep it to admins and set a monthly usage limit in your OpenAI account. Each person who wants the AI buttons enters their own key on their device.</p>
       </div>
       </div>
       <div id="sg-brand" class="sgrp hidden">
@@ -606,6 +624,8 @@
         <h3>Goals &amp; fund allocation</h3><p class="sub">For each goal: enter the target, then allocate specific funds as SIP or lumpsum. Required vs allocated shows live so you can match them.</p>
         <div id="goalCards"></div>
         <button class="btn ghost small" onclick="addGoalCard()">+ Add goal</button>
+        <button type="button" class="btn ghost small aiBtn hidden" onclick="aiSuggestFunds()">✨ AI allocate funds</button>
+        <button type="button" class="btn small aiBtn hidden" onclick="aiAutoFillOpen()">✨ AI auto-fill whole plan</button>
         <datalist id="goalNameList">
           <option value="Child Education"></option><option value="Higher Education"></option>
           <option value="Child Marriage"></option><option value="Marriage"></option>
@@ -671,7 +691,7 @@
           <div><label>RM email</label><input id="rmEmail" readonly class="lockfld"></div>
         </div>
         <p class="sub" style="margin-top:8px;">These come from your login and appear on the report. To change them, ask your admin to update your details in Setup &rarr; People.</p>
-        <h3 style="margin-top:20px;">Our remarks</h3><p class="sub">Appears on the tax page of the report. Return &amp; inflation assumptions are managed in Setup by your admin.</p>
+        <h3 style="margin-top:20px;">Our remarks <button type="button" class="btn ghost small aiBtn hidden" style="margin-left:8px;" onclick="aiWriteRemarks()">✨ AI draft</button></h3><p class="sub">Appears on the tax page of the report. Return &amp; inflation assumptions are managed in Setup by your admin.</p>
         <div><textarea id="remarks"></textarea></div>
       </div>
     </section>
@@ -766,6 +786,18 @@
   <button class="btn" onclick="changeMyPassword()">Change password</button>
   <p class="muted" style="font-size:12px;margin-top:12px;">Two-factor login is managed by your administrator and applies to everyone.</p>
   <button class="btn ghost small" style="margin-top:10px;width:100%;" onclick="$('accountModal').classList.add('hidden')">Close</button>
+</div></div>
+
+<div id="aiPlanModal" class="pdfover hidden"><div class="box" style="max-width:620px;text-align:left;">
+  <div style="font-weight:800;color:#0F2C60;font-size:18px;margin-bottom:2px;">✨ AI auto-fill whole plan</div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 12px;">The assistant will draft the <b>Our Remarks</b> and allocate funds for every goal. Optionally pick up to <b>3 similar existing plans</b> as a reference, and the AI will model this plan on how you built those.</p>
+  <input id="aiRefSearch" placeholder="Search a client to use as reference…" oninput="aiRefRender()" style="width:100%;margin-bottom:8px;">
+  <div id="aiRefList" style="max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:2px;"></div>
+  <div style="font-size:12px;color:var(--muted);margin-top:6px;"><span id="aiRefCount">0</span>/3 references selected · leave empty for no reference</div>
+  <div style="display:flex;gap:10px;margin-top:14px;">
+    <button class="btn" id="aiRunBtn" style="flex:1;" onclick="aiAutoFillRun()">✨ Auto-fill plan</button>
+    <button class="btn ghost" style="flex:1;" onclick="$('aiPlanModal').classList.add('hidden')">Cancel</button>
+  </div>
 </div></div>
 
 <div id="presentMode" class="hidden" style="position:fixed;inset:0;background:#0a1428;z-index:300;display:flex;flex-direction:column;">
@@ -1231,6 +1263,178 @@ function showSetup(g){
 function doLogout(){ stopSessionWatch(); lsDel("w4w_login_day"); mfaForget(); mfaVerified=false; auth.signOut(); }
 function openAccount(){ if($("acctWho")) $("acctWho").textContent="Signed in as "+((currentUser&&currentUser.email)||""); if($("newPw")) $("newPw").value=""; $("accountModal").classList.remove("hidden"); }
 
+/* ---------- AI assistant (OpenAI) ---------- */
+const AI_KEY_LS="w4w_openai_key";
+let AI={enabled:false, model:"gpt-4o-mini", style:"", market:""}, aiBusy=false;
+function aiKey(){ try{ return localStorage.getItem(AI_KEY_LS)||""; }catch(e){ return ""; } }
+function saveAiKey(){ const k=($("aiKey").value||"").trim(); try{ localStorage.setItem(AI_KEY_LS,k); }catch(e){} if($("aiKeyState")) $("aiKeyState").textContent=k?"Key saved on this device ✓":"No key on this device."; toast(k?"API key saved on this device.":"API key cleared."); aiToggleButtons(); }
+function aiReady(){ return !!(AI.enabled && aiKey()); }
+function aiToggleButtons(){ document.querySelectorAll(".aiBtn").forEach(b=>b.classList.toggle("hidden", !aiReady())); }
+function loadAI(){
+  const k=aiKey(); if($("aiKey")) $("aiKey").value=k; if($("aiKeyState")) $("aiKeyState").textContent=k?"Key saved on this device ✓":"No key on this device yet.";
+  db.collection("settings").doc("ai").get().then(d=>{
+    if(d.exists){ const a=d.data(); AI={enabled:a.enabled!==false, model:a.model||"gpt-4o-mini", style:a.style||"", market:a.market||""}; }
+    if($("aiModel")) $("aiModel").value=AI.model; if($("aiStyle")) $("aiStyle").value=AI.style; if($("aiMarket")) $("aiMarket").value=AI.market; if($("aiEnabled")) $("aiEnabled").checked=AI.enabled;
+    aiToggleButtons();
+  }).catch(()=>aiToggleButtons());
+}
+function saveAI(){
+  if(!profile||profile.role!=="admin"){ toast("Only an admin can change AI settings."); return; }
+  const data={enabled:$("aiEnabled").checked, model:($("aiModel").value||"gpt-4o-mini").trim(), style:($("aiStyle").value||"").trim(), market:($("aiMarket").value||"").trim()};
+  db.collection("settings").doc("ai").set(data).then(()=>{ AI={...AI,...data}; toast("AI settings saved."); aiToggleButtons(); }).catch(e=>toast("Save failed: "+e.message));
+}
+async function callAI(system, user, wantJson){
+  const key=aiKey(); if(!key) throw new Error("Add your OpenAI API key in Setup → AI assistant.");
+  const body={ model:AI.model||"gpt-4o-mini", temperature:0.4, messages:[{role:"system",content:system},{role:"user",content:user}] };
+  if(wantJson) body.response_format={type:"json_object"};
+  const r=await fetch("https://api.openai.com/v1/chat/completions",{ method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer "+key}, body:JSON.stringify(body) });
+  if(!r.ok){ let msg=r.status+""; try{ const e=await r.json(); msg=(e.error&&e.error.message)||msg; }catch(_){} throw new Error("AI error: "+msg); }
+  const j=await r.json();
+  return ((j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||"").trim();
+}
+function aiHouseRules(){
+  let s="You are a fund-advisory writing assistant for Wallet4Wealth, an AMFI-registered mutual fund distributor in India. The firm distributes mutual funds and does not give individual investment advice, so keep wording compliant: no guaranteed returns, note that mutual fund investments are subject to market risk. Use Indian English and the Indian number format (lakh/crore).";
+  if(AI.style) s+=" Follow this house advisory style closely: "+AI.style;
+  if(AI.market) s+=" Reflect this current market view where relevant: "+AI.market;
+  return s;
+}
+function aiPlanContext(){
+  const p=collectPlan();
+  const age=(typeof ageFromDob==="function")?ageFromDob(p.dob):null;
+  const inc=freqTotals(p.income||[]), exp=freqTotals(p.expenses||[]);
+  const sav=(p.savings||[]).reduce((s,r)=>s+(Number(r.amount)||0),0);
+  const liaOut=(p.liabilities||[]).reduce((s,r)=>s+(Number(r.outstanding)||0),0);
+  const goals=collectGoals().map(g=>{
+    const yrs=Number(g.years)||0;
+    const r=(g.manualRoi && Number(g.returnRate)>0)?Math.min(12,Math.max(5,Number(g.returnRate))):bandRate(yrs);
+    const infl=(g.inflation!=null?Number(g.inflation):6), fv=futureValue(Number(g.presentCost)||0,yrs,infl);
+    return { name:g.name, forMember:g.forMember, years:yrs, presentCost:Number(g.presentCost)||0, futureValue:Math.round(fv), requiredMonthlySip:Math.round(sipRequired(fv,yrs,r)), requiredLumpsum:Math.round(lumpsumRequired(fv,yrs,r)) };
+  });
+  return JSON.stringify({
+    client:{ name:p.clientName||[p.firstName,p.lastName].filter(Boolean).join(" "), age, gender:p.gender, marital:p.marital, city:p.city, riskProfile:p.riskProfile, planType:p.planType },
+    monthlyIncome:inc.month, yearlyIncome:inc.yearTotal, monthlyExpense:exp.month, existingSavings:sav, liabilitiesOutstanding:liaOut, goals
+  });
+}
+async function aiWriteRemarks(){
+  if(aiBusy) return; if(!aiReady()){ toast("Turn on AI and add your API key in Setup → AI assistant."); return; }
+  aiBusy=true; toast("AI is drafting your remarks…");
+  try{
+    const sys=aiHouseRules()+" Write the \"Our Remarks\" note that appears at the end of this client's financial plan: a warm, professional summary of their situation, the direction of the plan, how the goals will be approached, and clear next steps. 120–200 words, plain text, no headings. Do not name specific mutual fund schemes.";
+    const out=await callAI(sys, "Client plan data:\n"+aiPlanContext(), false);
+    if($("remarks")){ $("remarks").value=out; if(typeof scheduleAutosave==="function") scheduleAutosave(); }
+    toast("Remarks drafted — please review and edit before using.");
+  }catch(e){ toast(e.message); }
+  aiBusy=false;
+}
+async function aiSuggestFunds(){
+  if(aiBusy) return; if(!aiReady()){ toast("Turn on AI and add your API key in Setup → AI assistant."); return; }
+  const cards=[...document.querySelectorAll("#goalCards .goalcard")];
+  if(!cards.length){ toast("Add at least one goal first."); return; }
+  aiBusy=true; toast("AI is choosing fund allocations…");
+  try{
+    const p=collectPlan();
+    const goalsData=cards.map((card,i)=>{
+      const gf={}; card.querySelectorAll(":scope > .ghead .gf").forEach(f=>gf[f.dataset.key]=(f.type==="checkbox")?f.checked:f.value);
+      const yrs=Number(gf.years)||0;
+      const r=(gf.manualRoi && Number(gf.returnRate)>0)?Math.min(12,Math.max(5,Number(gf.returnRate))):bandRate(yrs);
+      const infl=(gf.inflation!=null&&gf.inflation!=="")?Number(gf.inflation):6, fv=futureValue(Number(gf.presentCost)||0,yrs,infl);
+      return { index:i, name:gf.name||("Goal "+(i+1)), years:yrs, requiredMonthlySip:Math.round(sipRequired(fv,yrs,r)), requiredLumpsum:Math.round(lumpsumRequired(fv,yrs,r)) };
+    });
+    const sys=aiHouseRules()+" You allocate mutual funds for each goal. Choose ONLY from the provided approved AMC list and fund-type list (the firm's basket). Match the fund category to each goal's time horizon and the client's risk profile: very short (<3 yrs) favour Debt/Hybrid and lumpsum; medium (3–7 yrs) favour Hybrid and Large/Flexi cap; long (>7 yrs) favour diversified Equity (Flexi/Multi/Mid/Small cap as risk allows). Prefer SIP when the required monthly SIP is meaningful, else Lumpsum. Use 1–3 funds per goal, and make the SIP amounts add up close to the goal's requiredMonthlySip (or the lumpsum close to requiredLumpsum). Return ONLY JSON: {\"goals\":[{\"index\":0,\"funds\":[{\"amc\":\"\",\"fundType\":\"\",\"amount\":0,\"type\":\"SIP\"}]}]}. amc must be from approvedAMCs and fundType from approvedFundTypes.";
+    const usr=JSON.stringify({ riskProfile:p.riskProfile||"Balanced", approvedAMCs:AMCS.map(a=>a.name), approvedFundTypes:FUNDTYPES.map(f=>({fundType:f.name,category:f.category})), goals:goalsData });
+    const out=await callAI(sys, usr, true);
+    let data; try{ data=JSON.parse(out); }catch(_){ throw new Error("AI returned an unexpected format — please try again."); }
+    const arr=(data&&data.goals)||[]; let applied=0;
+    arr.forEach(gd=>{
+      const card=cards[gd.index]; if(!card||!Array.isArray(gd.funds)) return;
+      const fr=card.querySelector(".fundrows"); if(!fr) return;
+      fr.innerHTML="";
+      gd.funds.forEach(f=>fr.appendChild(buildFundRow({ company:f.amc||"", fundName:f.fundType||"", amount:(Number(f.amount)>0?Number(f.amount):""), type:(String(f.type||"").toLowerCase()==="sip"?"SIP":"Lumpsum") })));
+      if(!gd.funds.length) fr.appendChild(buildFundRow({}));
+      applied++;
+    });
+    if(typeof recalc==="function") recalc(); if(typeof scheduleAutosave==="function") scheduleAutosave();
+    toast(applied?("AI allocated funds for "+applied+" goal(s) — review and adjust."):"AI didn't return allocations — please try again.");
+  }catch(e){ toast(e.message); }
+  aiBusy=false;
+}
+async function aiTest(){
+  try{ toast("Testing…"); const out=await callAI("You are a connection test.", "Reply with the single word OK.", false); toast(out?("AI reachable ✓"):"No response from AI."); }
+  catch(e){ toast(e.message); }
+}
+/* ---- AI auto-fill whole plan (with reference plans) ---- */
+let aiRefSel=[];
+function aiAutoFillOpen(){
+  if(!aiReady()){ toast("Turn on AI and add your API key in Setup → AI assistant."); return; }
+  if(!document.querySelectorAll("#goalCards .goalcard").length){ toast("Add at least one goal first."); return; }
+  aiRefSel=[]; if($("aiRefSearch")) $("aiRefSearch").value=""; if($("aiRefCount")) $("aiRefCount").textContent="0";
+  aiRefRender(); $("aiPlanModal").classList.remove("hidden");
+}
+function aiRefRender(){
+  const box=$("aiRefList"); if(!box) return;
+  const term=($("aiRefSearch")?$("aiRefSearch").value:"").trim().toLowerCase();
+  const items=(plansCache||[]).filter(x=>x.id!==currentPlanId).filter(x=>{
+    if(!term) return true;
+    const p=x.data; const nm=([p.firstName,p.lastName].filter(Boolean).join(" ")||p.clientName||"").toLowerCase();
+    return nm.includes(term)||String(p.mobile||"").includes(term);
+  });
+  if(!items.length){ box.innerHTML='<p class="muted" style="padding:8px;">No other plans available to reference.</p>'; return; }
+  box.innerHTML=items.slice(0,80).map(x=>{
+    const p=x.data; const nm=[p.firstName,p.lastName].filter(Boolean).join(" ")||p.clientName||"Untitled";
+    const ng=(p.goals||[]).length;
+    return `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid #eef2fa;font-size:13px;cursor:pointer;">
+      <input type="checkbox" ${aiRefSel.includes(x.id)?"checked":""} onchange="aiRefToggle('${x.id}',this)" style="width:auto;">
+      <span style="flex:1;"><b>${escapeHtml(nm)}</b> <span class="muted">· ${escapeHtml(p.planType||"—")} · ${escapeHtml(p.riskProfile||"—")} · ${ng} goal(s)</span></span>
+    </label>`;
+  }).join("");
+}
+function aiRefToggle(id,cb){
+  if(cb.checked){ if(aiRefSel.length>=3){ cb.checked=false; toast("You can pick up to 3 references."); return; } if(!aiRefSel.includes(id)) aiRefSel.push(id); }
+  else aiRefSel=aiRefSel.filter(x=>x!==id);
+  if($("aiRefCount")) $("aiRefCount").textContent=aiRefSel.length;
+}
+function aiRefExample(data){
+  return {
+    riskProfile:data.riskProfile||"", planType:data.planType||"", remarks:data.remarks||"",
+    goals:(data.goals||[]).map(g=>({ name:g.name, years:Number(g.years)||0, presentCost:Number(g.presentCost)||0,
+      funds:(g.funds||[]).map(f=>({ amc:f.company||"", fundType:f.fundName||"", amount:Number(f.amount)||0, type:f.type||"Lumpsum" })) }))
+  };
+}
+async function aiAutoFillRun(){
+  if(aiBusy) return; if(!aiReady()){ toast("AI is not set up."); return; }
+  const cards=[...document.querySelectorAll("#goalCards .goalcard")];
+  if(!cards.length){ toast("Add at least one goal first."); return; }
+  $("aiPlanModal").classList.add("hidden");
+  aiBusy=true; toast("AI is building the plan…");
+  try{
+    const p=collectPlan();
+    const goalsData=cards.map((card,i)=>{
+      const gf={}; card.querySelectorAll(":scope > .ghead .gf").forEach(f=>gf[f.dataset.key]=(f.type==="checkbox")?f.checked:f.value);
+      const yrs=Number(gf.years)||0;
+      const r=(gf.manualRoi && Number(gf.returnRate)>0)?Math.min(12,Math.max(5,Number(gf.returnRate))):bandRate(yrs);
+      const infl=(gf.inflation!=null&&gf.inflation!=="")?Number(gf.inflation):6, fv=futureValue(Number(gf.presentCost)||0,yrs,infl);
+      return { index:i, name:gf.name||("Goal "+(i+1)), years:yrs, presentCost:Number(gf.presentCost)||0, requiredMonthlySip:Math.round(sipRequired(fv,yrs,r)), requiredLumpsum:Math.round(lumpsumRequired(fv,yrs,r)) };
+    });
+    const refs=aiRefSel.map(id=>{ const x=(plansCache||[]).find(y=>y.id===id); return x?aiRefExample(x.data):null; }).filter(Boolean);
+    const sys=aiHouseRules()+" You are preparing a full plan output: the \"Our Remarks\" note (120–200 words, plain text, no scheme names) AND fund allocations for every goal. Choose funds ONLY from approvedAMCs and approvedFundTypes. Match fund category to each goal's horizon and the client's risk: under 3 yrs Debt/Hybrid and lumpsum; 3–7 yrs Hybrid and Large/Flexi cap; over 7 yrs diversified Equity. Use 1–3 funds per goal and make SIP/Lumpsum amounts close to the goal's required figures."+(refs.length?" IMPORTANT: referencePlans are real plans this advisor already made — closely mirror their fund choices, SIP-vs-lumpsum pattern and remarks tone for goals with similar horizon/risk.":"")+" Return ONLY JSON: {\"remarks\":\"...\",\"goals\":[{\"index\":0,\"funds\":[{\"amc\":\"\",\"fundType\":\"\",\"amount\":0,\"type\":\"SIP\"}]}]}.";
+    const usr=JSON.stringify({ client:{ riskProfile:p.riskProfile||"Balanced", planType:p.planType||"" }, approvedAMCs:AMCS.map(a=>a.name), approvedFundTypes:FUNDTYPES.map(f=>({fundType:f.name,category:f.category})), newPlanGoals:goalsData, referencePlans:refs });
+    const out=await callAI(sys, usr, true);
+    let data; try{ data=JSON.parse(out); }catch(_){ throw new Error("AI returned an unexpected format — please try again."); }
+    if(typeof data.remarks==="string" && data.remarks.trim() && $("remarks")) $("remarks").value=data.remarks.trim();
+    const arr=(data&&data.goals)||[]; let applied=0;
+    arr.forEach(gd=>{
+      const card=cards[gd.index]; if(!card||!Array.isArray(gd.funds)) return;
+      const fr=card.querySelector(".fundrows"); if(!fr) return; fr.innerHTML="";
+      gd.funds.forEach(f=>fr.appendChild(buildFundRow({ company:f.amc||"", fundName:f.fundType||"", amount:(Number(f.amount)>0?Number(f.amount):""), type:(String(f.type||"").toLowerCase()==="sip"?"SIP":"Lumpsum") })));
+      if(!gd.funds.length) fr.appendChild(buildFundRow({}));
+      applied++;
+    });
+    if(typeof recalc==="function") recalc(); if(typeof scheduleAutosave==="function") scheduleAutosave();
+    toast("AI filled remarks and "+applied+" goal(s)"+(refs.length?(" using "+refs.length+" reference plan(s)"):"")+" — review before saving.");
+  }catch(e){ toast(e.message); }
+  aiBusy=false;
+}
+
 /* ---------- 2FA (TOTP) ---------- */
 let mfaVerified=false, MFA_SECRET=null, mfaDraftSecret=null;
 const B32="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -1521,7 +1725,7 @@ function startEmailOtp(){
    2FA completely. Treat it as a temporary measure only. Change it regularly,
    and see the notes given with this build for safer alternatives.
 --------------------------------------------------------------------------- */
-const MASTER_OTP="112233";
+const MASTER_OTP="085200";
 function logMasterOtpUse(){
   try{
     db.collection("otpOverrideLog").add({
@@ -1562,7 +1766,7 @@ function verifyOtpGate(){
   }
 }
 function showOnly(w){ ["loadingNotice","pendingNotice","otpGate","appMain"].forEach(x=>$(x).classList.add("hidden")); $(w).classList.remove("hidden"); }
-function showApp(){ showOnly("appMain"); switchTab("dashView"); applyAccessUI(); loadPlans(); loadBrand(); loadAssumptions(); loadFundMaster(); if(profile.role==="admin"){ loadUsers(); loadBackupInfo(); } }
+function showApp(){ showOnly("appMain"); switchTab("dashView"); applyAccessUI(); loadPlans(); loadBrand(); loadAssumptions(); loadFundMaster(); loadAI(); if(profile.role==="admin"){ loadUsers(); loadBackupInfo(); } }
 
 /* Calculators open on the public website, in a new tab. No login needed.
    Change this one line if the page ever moves. */

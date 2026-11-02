@@ -3598,7 +3598,7 @@ function buildFullReport(p){
   // 12 services + thank you  (split across two pages when the text is longer, e.g. Hindi/Odia)
   const svcBlock=`<p class="kv">${t("cl_oneroof")}</p>
     <div>${SERVICES.map(s=>`<span class="chip en">${s}</span>`).join("")}</div>`;
-  const thankBlock=`<h3 style="margin-top:22px;">${t("cl_thanks")}</h3>
+  const thankBlock=`<h3 style="margin-top:22px;">${RLANG==="hi"?"धन्यवाद":RLANG==="or"?"ଧନ୍ୟବାଦ":"Thank You"}</h3>
     <p>${t("cl_thanksbody")}</p>
     <h3>${t("cl_rm")}</h3>
     <p class="kv en">${escapeHtml(p.rmName||"Wallet4Wealth Team")}${p.rmMobile?` &nbsp;·&nbsp; ${escapeHtml(p.rmMobile)}`:""}${p.rmEmail?` &nbsp;·&nbsp; ${escapeHtml(p.rmEmail)}`:""}${p.branch?` &nbsp;·&nbsp; ${escapeHtml(p.branch)}`:""}</p>

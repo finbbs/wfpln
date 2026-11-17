@@ -376,7 +376,7 @@
         <button data-sg="assump" onclick="showSetup('assump')">Assumptions</button>
         <button data-sg="brand" onclick="showSetup('brand')">Branding</button>
         <button data-sg="funds" onclick="showSetup('funds')">Fund master</button>
-        <button data-sg="ai" onclick="showSetup('ai')">AI assistant</button>
+        <button data-sg="ai" onclick="showSetup('ai')">Wally (AI)</button>
         <button data-sg="sec" onclick="showSetup('sec')">Security</button>
         <button data-sg="backup" onclick="showSetup('backup')">Backup</button>
       </div>
@@ -456,7 +456,7 @@
       </div>
       <div id="sg-ai" class="sgrp hidden">
       <div class="panel">
-        <h3>AI assistant (OpenAI / ChatGPT)</h3>
+        <h3>Wally — your AI assistant (OpenAI / ChatGPT)</h3>
         <p class="sub">Let the assistant draft your "Our Remarks" and propose fund allocations for each goal from your fund basket — matched to the client's time horizon, risk and your current market view, in your advisory style. Your API key is stored only on this device and is never uploaded.</p>
         <label style="display:flex;align-items:center;gap:8px;margin:6px 0;font-weight:500;"><input type="checkbox" id="aiEnabled" style="width:auto;"> Turn on the AI buttons in the plan editor</label>
         <div style="max-width:620px;margin-top:8px;">
@@ -548,6 +548,7 @@
           <span id="autosaveStatus" class="muted" style="font-size:12px;"></span>
           <button class="btn ghost small" onclick="backToDash()">← Back</button>
           <button class="btn ghost small" onclick="openExcelBox()" title="Send the input sheet to the client as Excel or PDF, or load their edited file back">Input</button>
+          <button class="btn small" style="background:#2E9E52;border-color:#2E9E52;" onclick="reviewPlan()">🔍 Wally: review</button>
           <button class="btn ghost" onclick="showReport()">Preview report</button>
           <button class="btn" onclick="savePlan()">Save plan</button>
         </div>
@@ -624,8 +625,8 @@
         <h3>Goals &amp; fund allocation</h3><p class="sub">For each goal: enter the target, then allocate specific funds as SIP or lumpsum. Required vs allocated shows live so you can match them.</p>
         <div id="goalCards"></div>
         <button class="btn ghost small" onclick="addGoalCard()">+ Add goal</button>
-        <button type="button" class="btn ghost small aiBtn hidden" onclick="aiSuggestFunds()">✨ AI allocate funds</button>
-        <button type="button" class="btn small aiBtn hidden" onclick="aiAutoFillOpen()">✨ AI auto-fill whole plan</button>
+        <button type="button" class="btn ghost small aiBtn hidden" onclick="aiSuggestFunds()">✨ Wally: allocate funds</button>
+        <button type="button" class="btn small aiBtn hidden" onclick="aiAutoFillOpen()">✨ Wally: auto-fill plan</button>
         <datalist id="goalNameList">
           <option value="Child Education"></option><option value="Higher Education"></option>
           <option value="Child Marriage"></option><option value="Marriage"></option>
@@ -691,7 +692,7 @@
           <div><label>RM email</label><input id="rmEmail" readonly class="lockfld"></div>
         </div>
         <p class="sub" style="margin-top:8px;">These come from your login and appear on the report. To change them, ask your admin to update your details in Setup &rarr; People.</p>
-        <h3 style="margin-top:20px;">Our remarks <button type="button" class="btn ghost small aiBtn hidden" style="margin-left:8px;" onclick="aiWriteRemarks()">✨ AI draft</button></h3><p class="sub">Appears on the tax page of the report. Return &amp; inflation assumptions are managed in Setup by your admin.</p>
+        <h3 style="margin-top:20px;">Our remarks <button type="button" class="btn ghost small aiBtn hidden" style="margin-left:8px;" onclick="aiWriteRemarks()">✨ Wally: draft</button></h3><p class="sub">Appears on the tax page of the report. Return &amp; inflation assumptions are managed in Setup by your admin.</p>
         <div><textarea id="remarks"></textarea></div>
       </div>
     </section>
@@ -789,7 +790,7 @@
 </div></div>
 
 <div id="aiPlanModal" class="pdfover hidden"><div class="box" style="max-width:620px;text-align:left;">
-  <div style="font-weight:800;color:#0F2C60;font-size:18px;margin-bottom:2px;">✨ AI auto-fill whole plan</div>
+  <div style="font-weight:800;color:#0F2C60;font-size:18px;margin-bottom:2px;">✨ Wally — auto-fill whole plan</div>
   <p class="muted" style="font-size:12.5px;margin:0 0 10px;">The assistant will draft the <b>Our Remarks</b> and allocate funds for every goal — in your style, respecting the client's income, surplus and retirement status. Optionally pick up to <b>3 similar existing plans</b> as a reference.</p>
   <label style="font-size:12.5px;font-weight:600;">How should the AI plan this client? <span class="muted" style="font-weight:400;">(optional — your instructions win)</span></label>
   <textarea id="aiPlanNote" rows="2" placeholder="e.g. Retired — need ₹80k/month via SWP, rest to growth, conservative, prefer HDFC/ICICI. Or: young, keep 15% buffer, aggressive equity for long goals." style="width:100%;margin:4px 0 12px;"></textarea>
@@ -800,6 +801,14 @@
     <button class="btn" id="aiRunBtn" style="flex:1;" onclick="aiAutoFillRun()">✨ Auto-fill plan</button>
     <button class="btn ghost" style="flex:1;" onclick="$('aiPlanModal').classList.add('hidden')">Cancel</button>
   </div>
+</div></div>
+
+<div id="reviewModal" class="pdfover hidden"><div class="box" style="max-width:640px;text-align:left;">
+  <div style="font-weight:800;color:#0F2C60;font-size:18px;margin-bottom:2px;">🔍 Wally's review — what you missed</div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 12px;">A quick check of goals, funding, retirement income and key fields before you present.</p>
+  <div id="reviewBody" style="max-height:340px;overflow:auto;"></div>
+  <div id="reviewAiBox" style="margin-top:12px;"></div>
+  <button class="btn ghost small" style="margin-top:14px;width:100%;" onclick="$('reviewModal').classList.add('hidden')">Close</button>
 </div></div>
 
 <div id="presentMode" class="hidden" style="position:fixed;inset:0;background:#0a1428;z-index:300;display:flex;flex-direction:column;">
@@ -1286,7 +1295,7 @@ function saveAI(){
   db.collection("settings").doc("ai").set(data).then(()=>{ AI={...AI,...data}; toast("AI settings saved."); aiToggleButtons(); }).catch(e=>toast("Save failed: "+e.message));
 }
 async function callAI(system, user, wantJson){
-  const key=aiKey(); if(!key) throw new Error("Add your OpenAI API key in Setup → AI assistant.");
+  const key=aiKey(); if(!key) throw new Error("Add your OpenAI API key in Setup → Wally (AI).");
   const body={ model:AI.model||"gpt-4o-mini", temperature:0.4, messages:[{role:"system",content:system},{role:"user",content:user}] };
   if(wantJson) body.response_format={type:"json_object"};
   const r=await fetch("https://api.openai.com/v1/chat/completions",{ method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer "+key}, body:JSON.stringify(body) });
@@ -1335,7 +1344,7 @@ function aiPlanContext(){
   return JSON.stringify({ client:aiClientFinancials(p), goals:aiGoalsSummary() });
 }
 async function aiWriteRemarks(){
-  if(aiBusy) return; if(!aiReady()){ toast("Turn on AI and add your API key in Setup → AI assistant."); return; }
+  if(aiBusy) return; if(!aiReady()){ toast("Turn on Wally and add your API key in Setup → Wally (AI)."); return; }
   aiBusy=true; toast("AI is drafting your remarks…");
   try{
     const sys=aiHouseRules()+" Write the \"Our Remarks\" note that appears at the end of this client's financial plan: a warm, professional summary of their situation, the direction of the plan, how the goals will be approached, and clear next steps. 120–200 words, plain text, no headings. Do not name specific mutual fund schemes.";
@@ -1346,7 +1355,7 @@ async function aiWriteRemarks(){
   aiBusy=false;
 }
 async function aiSuggestFunds(){
-  if(aiBusy) return; if(!aiReady()){ toast("Turn on AI and add your API key in Setup → AI assistant."); return; }
+  if(aiBusy) return; if(!aiReady()){ toast("Turn on Wally and add your API key in Setup → Wally (AI)."); return; }
   const cards=[...document.querySelectorAll("#goalCards .goalcard")];
   if(!cards.length){ toast("Add at least one goal first."); return; }
   aiBusy=true; toast("AI is choosing fund allocations…");
@@ -1381,10 +1390,95 @@ async function aiTest(){
   try{ toast("Testing…"); const out=await callAI("You are a connection test.", "Reply with the single word OK.", false); toast(out?("AI reachable ✓"):"No response from AI."); }
   catch(e){ toast(e.message); }
 }
+/* ---------- Plan review (deterministic completeness check + optional AI) ---------- */
+function planFindings(){
+  const p=collectPlan(); const issues=[]; const add=(sev,msg)=>issues.push({sev,msg});
+  const isRet=(p.planType||"").indexOf("Post")===0 || (Number(p.retTargetIncome)||0)>0;
+  const inc=freqTotals(p.income||[]), exp=freqTotals(p.expenses||[]);
+  const surplus=(inc.month||0)-(exp.month||0);
+  // --- personal capture ---
+  if(!p.firstName) add("error","Client name (first name) is missing.");
+  if(!p.dob) add("warn","Date of birth not set — age is unknown.");
+  if(!p.gender) add("info","Gender not selected (affects Sir/Madam wording).");
+  if(!p.mobile) add("warn","Mobile number not captured.");
+  if(!p.city) add("info","City not captured.");
+  if(!p.riskProfile) add("warn","Risk profile is not selected.");
+  // --- money in / out ---
+  if(!(p.income && p.income.length)) add("warn","No income / inflow entered — surplus can't be judged.");
+  if(!(p.expenses && p.expenses.length)) add("warn","No expenses entered — monthly surplus can't be judged.");
+  if(!(p.savings && p.savings.length)) add("info","No existing savings / investments captured.");
+  // --- goals ---
+  const cards=[...document.querySelectorAll("#goalCards .goalcard")];
+  if(!cards.length && !isRet) add("warn","No goals have been added.");
+  let totSip=0;
+  cards.forEach((card,i)=>{
+    const gf={}; card.querySelectorAll(":scope > .ghead .gf").forEach(f=>gf[f.dataset.key]=(f.type==="checkbox")?f.checked:f.value);
+    const name=((gf.name||"").trim())||("Goal "+(i+1));
+    const pc=Number(gf.presentCost)||0, yrs=Number(gf.years)||0;
+    let ret; if(gf.manualRoi){ ret=Number(gf.returnRate); if(!(ret>0)) ret=bandRate(yrs); ret=Math.min(12,Math.max(5,ret)); } else ret=bandRate(yrs);
+    const infl=(gf.inflation!=null&&gf.inflation!=="")?Number(gf.inflation):6;
+    if(!(gf.name||"").trim()) add("warn","Goal #"+(i+1)+" has no name.");
+    if(pc<=0){ add("warn","Goal '"+name+"' has no cost amount."); return; }
+    if(yrs<=0) add("warn","Goal '"+name+"' has no time horizon (0 years) — set the years unless it's needed right now.");
+    let aSip=0,aLump=0;
+    card.querySelectorAll(".fundrow").forEach(row=>{ const amt=Number(row.querySelector('[data-key="amount"]').value)||0; const type=row.querySelector('[data-key="type"]').value; if(type==="SIP")aSip+=amt; else aLump+=amt; });
+    totSip+=aSip;
+    const fv=futureValue(pc,yrs,infl);
+    if(!aSip && !aLump){ add("error","Goal '"+name+"': no funds allocated (needs "+fmt(fv)+" by maturity)."); return; }
+    const totFv=aLump*Math.pow(1+ret/100,yrs)+sipFutureValue(aSip,yrs,ret);
+    if(totFv < fv*0.99){ const gap=fv-totFv; add("error","Goal '"+name+"': allocation reaches "+fmt(totFv)+" against "+fmt(fv)+" needed — short "+fmt(gap)+" ("+Math.round(gap/fv*100)+"%)."); }
+  });
+  // --- affordability ---
+  if(totSip>0){
+    if(surplus>0 && totSip>surplus*1.02) add("warn","Planned SIP "+fmt(totSip)+"/month is more than the client's monthly surplus "+fmt(surplus)+" — may not be affordable.");
+    else if(surplus<=0 && (p.income&&p.income.length)&&(p.expenses&&p.expenses.length)) add("warn","No monthly surplus (income ≤ expenses), but "+fmt(totSip)+"/month of SIP is planned.");
+  }
+  // --- retirement income ---
+  if(isRet){
+    const swp=collectList("swpFunds"), rets=collectList("retirement");
+    const retMonthly=rets.reduce((s,r)=>s+(Number(r.monthlyIncome)||0),0)+(p.income||[]).filter(r=>r.frequency==="Monthly").reduce((s,r)=>s+(Number(r.amount)||0),0);
+    if(!swp.length && !rets.length) add("error","Post-retirement income plan, but no SWP fund or income scheme is allocated.");
+    else if(!swp.length) add("warn","No SWP fund is allocated in the SWP list (income schemes are present).");
+    const tgt=Number(p.retTargetIncome)||0;
+    if(tgt>0 && retMonthly < tgt*0.99) add("warn","Planned monthly income "+fmt(retMonthly)+" is below the target "+fmt(tgt)+" — gap "+fmt(tgt-retMonthly)+"/month.");
+    if(tgt<=0) add("info","Target monthly income after retirement is not set.");
+  }
+  // --- protection & finishing ---
+  if(!(collectList("insurance").length+collectList("protection").length)) add("info","No insurance / protection policy captured.");
+  if(!p.remarks) add("info","Our Remarks is empty — you can use ✨ Wally: draft.");
+  if(!p.rmName) add("info","Relationship Manager name not set for this plan.");
+  return issues;
+}
+function reviewPlan(){
+  if(!$("firstName").value && !document.querySelectorAll("#goalCards .goalcard").length){ toast("Open or fill a plan first."); return; }
+  const issues=planFindings().sort((a,b)=>({error:0,warn:1,info:2}[a.sev]-{error:0,warn:1,info:2}[b.sev]));
+  const meta={error:{c:"#C0392B",b:"#fdecea",t:"Must fix"},warn:{c:"#B7791F",b:"#fff8e6",t:"Check"},info:{c:"#5B6472",b:"#f3f5f9",t:"Note"}};
+  const box=$("reviewBody");
+  if(!issues.length){ box.innerHTML='<div style="padding:18px;background:#eafaf0;border:1px solid #bfe6cc;border-radius:10px;color:#2E9E52;font-weight:700;">✓ All good — nothing important is missing in this plan.</div>'; }
+  else {
+    const n=s=>issues.filter(x=>x.sev===s).length;
+    const head=`<div style="font-size:12.5px;color:#5B6472;margin-bottom:8px;">${n("error")} must-fix · ${n("warn")} to check · ${n("info")} notes</div>`;
+    box.innerHTML=head+issues.map(x=>{const m=meta[x.sev];return `<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-left:4px solid ${m.c};background:${m.b};border-radius:8px;margin-bottom:8px;"><span style="font-size:10.5px;font-weight:800;color:${m.c};text-transform:uppercase;letter-spacing:.5px;min-width:58px;">${m.t}</span><span style="font-size:14px;color:#1a2744;line-height:1.35;">${escapeHtml(x.msg)}</span></div>`;}).join("");
+  }
+  $("reviewAiBox").innerHTML = aiReady()? '<button class="btn small" onclick="reviewAi()">✨ Ask Wally to explain &amp; fix</button>' : '<span class="muted" style="font-size:12px;">Turn on Wally in Setup → Wally (AI) to get plain-language fixes.</span>';
+  $("reviewModal").classList.remove("hidden");
+}
+async function reviewAi(){
+  if(aiBusy||!aiReady()) return;
+  aiBusy=true; $("reviewAiBox").innerHTML='<span class="muted" style="font-size:12px;">AI is reviewing the plan…</span>';
+  try{
+    const issues=planFindings();
+    const sys=aiHouseRules()+" You are reviewing a DRAFT client plan for completeness before it is presented, like a senior advisor checking a junior's work. You are given the system's checklist findings and the client data. For each real gap, say briefly what is missing or insufficient and the practical fix with a rounded figure (e.g. 'add about Rs 8,000/month more to the Car goal', 'allocate an SWP fund of about Rs 1.2 crore', 'set the risk profile'). Keep it under 180 words, plain text, short points. If the findings list is empty, say the plan looks complete.";
+    const usr=JSON.stringify({ findings:issues.map(i=>i.sev+": "+i.msg), client:aiClientFinancials(collectPlan()), goals:aiGoalsSummary() });
+    const out=await callAI(sys, usr, false);
+    $("reviewAiBox").innerHTML='<div style="padding:12px 14px;background:#0F2C60;color:#eaf0fb;border-radius:10px;font-size:13.5px;line-height:1.5;white-space:pre-wrap;">'+escapeHtml(out)+'</div>';
+  }catch(e){ $("reviewAiBox").innerHTML='<span style="color:#C0392B;font-size:13px;">'+escapeHtml(e.message)+'</span>'; }
+  aiBusy=false;
+}
 /* ---- AI auto-fill whole plan (with reference plans) ---- */
 let aiRefSel=[];
 function aiAutoFillOpen(){
-  if(!aiReady()){ toast("Turn on AI and add your API key in Setup → AI assistant."); return; }
+  if(!aiReady()){ toast("Turn on Wally and add your API key in Setup → Wally (AI)."); return; }
   if(!document.querySelectorAll("#goalCards .goalcard").length){ toast("Add at least one goal first."); return; }
   aiRefSel=[]; if($("aiRefSearch")) $("aiRefSearch").value=""; if($("aiPlanNote")) $("aiPlanNote").value=""; if($("aiRefCount")) $("aiRefCount").textContent="0";
   aiRefRender(); $("aiPlanModal").classList.remove("hidden");

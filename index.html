@@ -1923,7 +1923,7 @@ document.addEventListener("DOMContentLoaded",function(){
    BULK_COLS is the single source of truth: the template and the importer are
    both generated from it, so they can never drift apart.
    Repeating sections are flattened to a fixed number of slots.            */
-const BULK_REPEAT={family:4,income:3,savings:3,expenses:3,liabilities:2,goals:7,insurance:2};
+const BULK_REPEAT={family:5,income:7,savings:7,expenses:7,liabilities:3,goals:10,insurance:3};
 function bulkCols(){
   const c=[];
   c.push({h:"Branch *",k:"branch",need:true,list:"branch"});

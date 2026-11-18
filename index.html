@@ -20,6 +20,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+Oriya:wght@400;700&display=swap" rel="stylesheet">
@@ -3154,7 +3156,7 @@ const LABELS={
   s_spread:{en:"How your money is spread out",hi:"आपका Portfolio कैसे बँटा है",or:"ଆପଣଙ୍କ Portfolio କିପରି ବଣ୍ଟା ଯାଇଛି"},
   s_incmix:{en:"Where your monthly income will come from",hi:"आपका Monthly Income कहाँ से आएगा",or:"ଆପଣଙ୍କ Monthly Income କେଉଁଠୁ ଆସିବ"},
   s_cashflow:{en:"Your month-to-month position",hi:"आपकी महीने-दर-महीने स्थिति",or:"ଆପଣଙ୍କ ମାସିକ ସ୍ଥିତି"},
-  s_swpfunds:{en:"Funds used to pay you a monthly income",hi:"मासिक आय देने वाले फंड",or:"ମାସିକ ଆୟ ଦେଉଥିବା ଫଣ୍ଡ"},
+  s_swpfunds:{en:"SWP Funds",hi:"SWP फंड",or:"SWP ଫଣ୍ଡ"},
   s_policies:{en:"Policies you already have",hi:"आपकी मौजूदा पॉलिसियाँ",or:"ଆପଣଙ୍କ ବର୍ତ୍ତମାନର ପଲିସି"},
   s_reccover:{en:"Cover we suggest you add",hi:"हमारा सुझाया गया अतिरिक्त कवर",or:"ଆମେ ସୁପାରିଶ କରୁଥିବା ଅତିରିକ୍ତ କଭର"},
   s_whyw4w:{en:"Why Wallet4Wealth",hi:"Wallet4Wealth क्यों",or:"Wallet4Wealth କାହିଁକି"},
@@ -3704,10 +3706,9 @@ function buildFullReport(p){
     }
   }
 
-  // 10 tax
-  if(taxHtml||p.remarks){ pages.push(`<div class="pbreak"></div>`+page(`<h2>Tax Summary${p.remarks?" &amp; Our Remarks":""}</h2>
-    ${taxHtml?taxHtml+`<p class="kv">We provide income-tax compliance support — eligible deductions and exemptions, accurate and timely filing, and tax-efficient structuring of investments.</p>`:""}
-    ${p.remarks?`<h3>Our Remarks</h3><p style="font-size:15px;">${escapeHtml(p.remarks)}</p>`:""}`)); }
+  // 10 our remarks  (tax planning removed)
+  if(p.remarks){ pages.push(`<div class="pbreak"></div>`+page(`<h2>Our Remarks</h2>
+    <p style="font-size:15px;white-space:pre-wrap;">${escapeHtml(p.remarks)}</p>`)); }
 
   // 11 product knowledge
   const pkItems=[...PK_MF, ...(isRet?PK_RET:PK_GROWTH)].map(([n,k])=>`<div class="pk"><b class="en">${n}</b> — ${t(k)}</div>`);
@@ -3903,20 +3904,37 @@ function downloadInputPdf(){
     .catch(()=>{ $("pdfOverlay").classList.add("hidden"); holder.remove(); toast("PDF generation failed — please try again."); });
 }
 
-function downloadPDF(){
+async function downloadPDF(){
   if(!canDownloadPdf()){ toast("PDF download isn't enabled for your login. Ask your admin."); return; }
   const el=$("pdfTarget"); if(!el){ toast("Open the report first."); return; }
+  const JS=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF;
+  if(typeof html2canvas==="undefined"||!JS){ toast("PDF library didn't load — check your connection."); return; }
   const name=(($("firstName").value||"plan")+"_"+($("lastName").value||"")).replace(/\s+/g,"_");
   $("pdfOverlay").classList.remove("hidden");
-  html2pdf().set({
-    margin:0, filename:name+"_financial_plan.pdf",
-    image:{type:"jpeg",quality:0.95},
-    html2canvas:{scale:2,useCORS:true},
-    jsPDF:{unit:"pt",format:"a4",orientation:"landscape"},
-    pagebreak:{mode:["css","legacy"],before:".pbreak"}
-  }).from(el).save()
-    .then(()=>$("pdfOverlay").classList.add("hidden"))
-    .catch(()=>{ $("pdfOverlay").classList.add("hidden"); toast("PDF generation failed — please try again."); });
+  /* One <section> = exactly one A4-landscape page. Each section is rendered on its
+     own and scaled to FIT the page — filling the width, and zooming out only if a
+     section is taller than the page — so headers and footers can never drift,
+     clip, or overlap onto the next page. */
+  try{
+    const secs=Array.from(el.querySelectorAll("section"));
+    if(!secs.length){ throw new Error("nothing to render"); }
+    const pdf=new JS({unit:"pt",format:"a4",orientation:"landscape"});
+    const pageW=pdf.internal.pageSize.getWidth(), pageH=pdf.internal.pageSize.getHeight();
+    for(let i=0;i<secs.length;i++){
+      const canvas=await html2canvas(secs[i],{scale:2,useCORS:true,backgroundColor:"#ffffff",logging:false});
+      const cw=canvas.width, ch=canvas.height;
+      let w=pageW, h=pageW*ch/cw;            // fill the page width
+      if(h>pageH-0.5){ h=pageH; w=pageH*cw/ch; }  // taller than the page → zoom out to fit
+      const x=(pageW-w)/2, y=0;              // centred across, pinned to the top
+      if(i>0) pdf.addPage();
+      pdf.addImage(canvas.toDataURL("image/jpeg",0.95),"JPEG",x,y,w,h,undefined,"FAST");
+    }
+    pdf.save(name+"_financial_plan.pdf");
+    $("pdfOverlay").classList.add("hidden");
+  }catch(e){
+    $("pdfOverlay").classList.add("hidden");
+    toast("PDF generation failed — "+((e&&e.message)?e.message:"please try again."));
+  }
 }
 
 /* ---------- book-style presentation ---------- */

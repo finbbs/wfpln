@@ -305,6 +305,10 @@
   .toast.show{opacity:1;}
   .notice{max-width:520px;margin:80px auto;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:40px;}
   .notice h2{color:var(--forest);margin:0 0 10px;}
+  .wally-act{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;width:100%;background:#f4f7fc;border:1px solid #e1e8f3;border-radius:12px;padding:13px 16px;cursor:pointer;transition:.15s;}
+  .wally-act:hover{background:#eaf0fb;border-color:#0F2C60;}
+  .wally-act b{font-size:15px;color:#0F2C60;}
+  .wally-act span{font-size:12px;color:#5B6472;}
 </style>
 </head>
 <body>
@@ -548,7 +552,7 @@
           <span id="autosaveStatus" class="muted" style="font-size:12px;"></span>
           <button class="btn ghost small" onclick="backToDash()">← Back</button>
           <button class="btn ghost small" onclick="openExcelBox()" title="Send the input sheet to the client as Excel or PDF, or load their edited file back">Input</button>
-          <button class="btn small" style="background:#2E9E52;border-color:#2E9E52;" onclick="reviewPlan()">🔍 Wally: review</button>
+          <button class="btn" style="background:#E8551F;border-color:#E8551F;font-weight:700;" onclick="openWally()">✨ Wally</button>
           <button class="btn ghost" onclick="showReport()">Preview report</button>
           <button class="btn" onclick="savePlan()">Save plan</button>
         </div>
@@ -625,8 +629,6 @@
         <h3>Goals &amp; fund allocation</h3><p class="sub">For each goal: enter the target, then allocate specific funds as SIP or lumpsum. Required vs allocated shows live so you can match them.</p>
         <div id="goalCards"></div>
         <button class="btn ghost small" onclick="addGoalCard()">+ Add goal</button>
-        <button type="button" class="btn ghost small aiBtn hidden" onclick="aiSuggestFunds()">✨ Wally: allocate funds</button>
-        <button type="button" class="btn small aiBtn hidden" onclick="aiAutoFillOpen()">✨ Wally: auto-fill plan</button>
         <datalist id="goalNameList">
           <option value="Child Education"></option><option value="Higher Education"></option>
           <option value="Child Marriage"></option><option value="Marriage"></option>
@@ -692,7 +694,7 @@
           <div><label>RM email</label><input id="rmEmail" readonly class="lockfld"></div>
         </div>
         <p class="sub" style="margin-top:8px;">These come from your login and appear on the report. To change them, ask your admin to update your details in Setup &rarr; People.</p>
-        <h3 style="margin-top:20px;">Our remarks <button type="button" class="btn ghost small aiBtn hidden" style="margin-left:8px;" onclick="aiWriteRemarks()">✨ Wally: draft</button></h3><p class="sub">Appears on the tax page of the report. Return &amp; inflation assumptions are managed in Setup by your admin.</p>
+        <h3 style="margin-top:20px;">Our remarks</h3><p class="sub">Appears on the tax page of the report. Return &amp; inflation assumptions are managed in Setup by your admin.</p>
         <div><textarea id="remarks"></textarea></div>
       </div>
     </section>
@@ -809,6 +811,19 @@
   <div id="reviewBody" style="max-height:340px;overflow:auto;"></div>
   <div id="reviewAiBox" style="margin-top:12px;"></div>
   <button class="btn ghost small" style="margin-top:14px;width:100%;" onclick="$('reviewModal').classList.add('hidden')">Close</button>
+</div></div>
+
+<div id="wallyModal" class="pdfover hidden"><div class="box" style="max-width:470px;text-align:left;">
+  <div style="font-weight:800;color:#0F2C60;font-size:20px;margin-bottom:2px;">✨ Wally — your AI assistant</div>
+  <p class="muted" style="font-size:12.5px;margin:0 0 14px;">Pick what Wally should do for this plan.</p>
+  <div style="display:flex;flex-direction:column;gap:10px;">
+    <button class="wally-act" onclick="wallyGo('review')"><b>🔍 Review plan — what did I miss?</b><span>Checks every field, goal funding & retirement income before you present</span></button>
+    <button class="wally-act" onclick="wallyGo('autofill')"><b>✨ Auto-fill whole plan</b><span>Draft remarks + allocate funds for every goal (with reference plans)</span></button>
+    <button class="wally-act" onclick="wallyGo('funds')"><b>📊 Allocate funds for goals</b><span>Pick funds from your basket by risk & time horizon</span></button>
+    <button class="wally-act" onclick="wallyGo('remarks')"><b>📝 Draft "Our Remarks"</b><span>Write the closing note in your advisory style</span></button>
+  </div>
+  <div id="wallyHint" style="margin-top:12px;"></div>
+  <button class="btn ghost small" style="margin-top:12px;width:100%;" onclick="$('wallyModal').classList.add('hidden')">Close</button>
 </div></div>
 
 <div id="presentMode" class="hidden" style="position:fixed;inset:0;background:#0a1428;z-index:300;display:flex;flex-direction:column;">
@@ -1474,6 +1489,18 @@ async function reviewAi(){
     $("reviewAiBox").innerHTML='<div style="padding:12px 14px;background:#0F2C60;color:#eaf0fb;border-radius:10px;font-size:13.5px;line-height:1.5;white-space:pre-wrap;">'+escapeHtml(out)+'</div>';
   }catch(e){ $("reviewAiBox").innerHTML='<span style="color:#C0392B;font-size:13px;">'+escapeHtml(e.message)+'</span>'; }
   aiBusy=false;
+}
+function openWally(){
+  if(!$("firstName").value && !document.querySelectorAll("#goalCards .goalcard").length){ toast("Open or fill a plan first."); return; }
+  $("wallyHint").innerHTML = aiReady()? '' : '<span class="muted" style="font-size:12px;">Auto-fill, allocate and draft need Wally switched on in <b>Setup &rarr; Wally (AI)</b>. Review works without it.</span>';
+  $("wallyModal").classList.remove("hidden");
+}
+function wallyGo(what){
+  $("wallyModal").classList.add("hidden");
+  if(what==="review") reviewPlan();
+  else if(what==="autofill") aiAutoFillOpen();
+  else if(what==="funds") aiSuggestFunds();
+  else if(what==="remarks") aiWriteRemarks();
 }
 /* ---- AI auto-fill whole plan (with reference plans) ---- */
 let aiRefSel=[];

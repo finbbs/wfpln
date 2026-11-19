@@ -317,18 +317,19 @@
 
 <div id="loginScreen" class="login-wrap">
   <div class="login-card">
-    <div class="logo"><span class="w4w">wallet<b>4wealth</b></span></div>
-    <h1>Client Portal</h1>
+    <div class="logo" id="loginLogo"><span class="w4w">wallet<b>4wealth</b></span></div>
+    <h1>FP Portal</h1>
     <div class="field"><label>Email</label><input id="loginEmail" type="email" placeholder="you@wallet4wealth.com" autocomplete="username" /></div>
-    <div class="field"><label>Password</label><input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password" /></div>
+    <div class="field"><label>Password</label><input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" /></div>
     <button class="btn" style="width:100%;" onclick="doLogin()">Sign in</button>
+    <div style="margin-top:10px;text-align:right;"><a href="#" onclick="forgotPassword();return false;" style="font-size:13px;color:var(--forest);">Forgot password?</a></div>
     <div id="loginErr" class="err"></div>
   </div>
 </div>
 
 <div id="appScreen" class="hidden">
   <header class="app">
-    <div class="brand"><span class="w4w">wallet<b>4wealth</b></span><span class="tag">Delivering Prosperity</span></div>
+    <div class="brand" id="hdrBrand"><span class="w4w">wallet<b>4wealth</b></span><span class="tag">Delivering Prosperity</span></div>
     <nav class="tabs" id="tabs">
       <button data-view="dashView" class="active" onclick="switchTab('dashView')">Plans</button>
       <a class="tablink" id="calcLink" href="https://wallet4wealth.com/retirement-calculator/" target="_blank" rel="noopener">Calculators ↗</a>
@@ -352,7 +353,7 @@
   <div id="otpGate" class="notice hidden">
     <h2 id="otpGateTitle">Enter your one-time code</h2>
     <p class="muted" id="otpGateMsg">Open your authenticator app (Google/Microsoft Authenticator) and enter the current 6-digit code for Wallet4Wealth.</p>
-    <input id="otpInput" inputmode="numeric" maxlength="6" placeholder="000000" onkeydown="if(event.key==='Enter')verifyOtpGate()" style="max-width:200px;font-size:20px;letter-spacing:6px;text-align:center;">
+    <input id="otpInput" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autocomplete="one-time-code" onkeydown="if(event.key==='Enter')verifyOtpGate()" style="max-width:200px;font-size:20px;letter-spacing:6px;text-align:center;">
     <div id="otpErr" style="color:var(--danger);font-size:13px;margin-top:6px;min-height:16px;"></div>
     <div style="margin-top:12px;">
       <button class="btn" onclick="verifyOtpGate()">Verify</button>
@@ -366,7 +367,7 @@
       <div class="toolbar"><h2 id="dashTitle">Client plans</h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <input id="planSearch" placeholder="Search name or mobile" oninput="renderPlans()" style="width:190px;padding:8px 10px;">
-          <button class="btn ghost small" id="viewToggle" onclick="toggleDashView()">List view</button>
+          <button class="btn ghost small" id="viewToggle" onclick="toggleDashView()">Card view</button>
           <label class="btn ghost small bulkOnly hidden" id="btnBulkImport" style="margin:0;cursor:pointer;" title="Admin only — load many clients at once from a single seminar sheet">⭱⭱ Import bulk<input type="file" accept=".xlsx,.xls" onchange="importBulkExcel(this)" style="display:none;"></label>
           <button class="btn ghost small bulkOnly hidden" id="btnBulkTemplate" onclick="downloadBulkTemplate()" title="Admin only — one row per client, for seminars or a Google Form">⭳ Bulk template</button>
           <button class="btn gold" onclick="newPlan()">+ New plan</button>
@@ -384,6 +385,7 @@
         <button data-sg="funds" onclick="showSetup('funds')">Fund master</button>
         <button data-sg="ai" onclick="showSetup('ai')">Wally (AI)</button>
         <button data-sg="sec" onclick="showSetup('sec')">Security</button>
+        <button data-sg="activity" onclick="showSetup('activity');loadActivity();">Activity</button>
         <button data-sg="backup" onclick="showSetup('backup')">Backup</button>
       </div>
       <div id="sg-branch" class="sgrp">
@@ -445,6 +447,22 @@
           <div style="display:flex;align-items:flex-end;"><label style="display:flex;align-items:center;gap:8px;font-weight:500;"><input type="checkbox" id="secDayEnd" style="width:auto;"> Also sign out at the end of each day</label></div>
         </div>
         <button class="btn" style="margin-top:12px;" onclick="saveSecurity()">Save session expiry</button>
+        <h3 style="margin-top:22px;">Admin override code</h3>
+        <p class="sub">A break-glass code that always passes the login code screen — for when an authenticator or email code isn't available. Every use is recorded in Activity. Change it regularly; the default is <b>085200</b>.</p>
+        <div style="max-width:260px;"><label>Override code (4–8 digits)</label><input id="secMasterCode" type="password" inputmode="numeric" maxlength="8" placeholder="••••••" autocomplete="off"></div>
+        <button class="btn" style="margin-top:12px;" onclick="saveMasterCode()">Save override code</button>
+      </div>
+      </div>
+
+      <div id="sg-activity" class="sgrp hidden">
+      <div class="panel">
+        <h3>Activity — who opened whose plan</h3>
+        <p class="sub">A running record of plans opened and login override uses. Newest first.</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+          <input id="actSearch" placeholder="Search person or client" oninput="renderActivity()" style="width:220px;padding:8px 10px;">
+          <button class="btn ghost small" onclick="loadActivity()">Refresh</button>
+        </div>
+        <div id="activityList"><p class="muted">Loading…</p></div>
       </div>
       </div>
 
@@ -1260,6 +1278,14 @@ function planTaxRecalc(){
 /* ---------- auth ---------- */
 function doLogin(){ $("loginErr").style.color=""; $("loginErr").textContent="";
   auth.signInWithEmailAndPassword($("loginEmail").value.trim(),$("loginPass").value).catch(err=>$("loginErr").textContent=friendlyAuthError(err.code)); }
+function forgotPassword(){
+  const email=($("loginEmail").value||"").trim();
+  $("loginErr").style.color="";
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ $("loginErr").style.color="var(--danger)"; $("loginErr").textContent="Type your email address above first, then tap “Forgot password?”."; return; }
+  auth.sendPasswordResetEmail(email)
+    .then(()=>{ $("loginErr").style.color="var(--forest)"; $("loginErr").textContent="A password-reset link has been sent to "+email+". Check your inbox (and spam)."; })
+    .catch(err=>{ $("loginErr").style.color="var(--danger)"; $("loginErr").textContent=friendlyAuthError(err.code); });
+}
 function sendLoginLink(){
   const email=($("loginEmail").value||"").trim();
   $("loginErr").style.color="";
@@ -1652,8 +1678,15 @@ function loadProfile(){
     .then(doc=>{ profile=doc.data(); afterProfile(); })
     .catch(err=>{ showOnly("pendingNotice"); toast("Couldn't load your account: "+err.message); });
 }
-let SEC={emailOtpEnabled:false, otpUrl:"", idleMinutes:30, dayEndLogout:true}, MFA_MODE="totp";
-function loadSecurity(){ return db.collection("settings").doc("security").get().then(d=>{ if(d.exists){ const s=d.data(); SEC={emailOtpEnabled:!!s.emailOtpEnabled, otpUrl:s.otpUrl||"", idleMinutes:(s.idleMinutes==null?30:Number(s.idleMinutes)||0), dayEndLogout:(s.dayEndLogout!==false)}; } if($("secEmailOtp")) $("secEmailOtp").checked=SEC.emailOtpEnabled; if($("secOtpUrl")) $("secOtpUrl").value=SEC.otpUrl; if($("secIdleMin")) $("secIdleMin").value=SEC.idleMinutes; if($("secDayEnd")) $("secDayEnd").checked=SEC.dayEndLogout; }).catch(()=>{}); }
+let SEC={emailOtpEnabled:false, otpUrl:"", idleMinutes:30, dayEndLogout:true, masterCode:"085200"}, MFA_MODE="totp";
+function loadSecurity(){ return db.collection("settings").doc("security").get().then(d=>{ if(d.exists){ const s=d.data(); SEC={emailOtpEnabled:!!s.emailOtpEnabled, otpUrl:s.otpUrl||"", idleMinutes:(s.idleMinutes==null?30:Number(s.idleMinutes)||0), dayEndLogout:(s.dayEndLogout!==false), masterCode:(/^\d{4,8}$/.test(s.masterCode||"")?s.masterCode:"085200")}; } MASTER_OTP=SEC.masterCode||"085200"; if($("secEmailOtp")) $("secEmailOtp").checked=SEC.emailOtpEnabled; if($("secOtpUrl")) $("secOtpUrl").value=SEC.otpUrl; if($("secIdleMin")) $("secIdleMin").value=SEC.idleMinutes; if($("secDayEnd")) $("secDayEnd").checked=SEC.dayEndLogout; if($("secMasterCode")) $("secMasterCode").value=SEC.masterCode; }).catch(()=>{}); }
+function saveMasterCode(){
+  const c=($("secMasterCode").value||"").trim();
+  if(!/^\d{4,8}$/.test(c)){ toast("Enter a 4–8 digit code."); return; }
+  db.collection("settings").doc("security").set({masterCode:c},{merge:true})
+    .then(()=>{ SEC.masterCode=c; MASTER_OTP=c; toast("Override code updated."); })
+    .catch(e=>toast("Save failed: "+e.message));
+}
 function saveSecurity(){
   const otpUrl=($("secOtpUrl").value||"").trim(), on=$("secEmailOtp").checked;
   if(on && !/^https:\/\/script\.google\.com\/.+\/exec$/.test(otpUrl)){ toast("Enter the Apps Script /exec URL first."); return; }
@@ -1868,7 +1901,7 @@ function startEmailOtp(){
    2FA completely. Treat it as a temporary measure only. Change it regularly,
    and see the notes given with this build for safer alternatives.
 --------------------------------------------------------------------------- */
-const MASTER_OTP="085200";
+let MASTER_OTP="085200";   // default; admin can change it in Setup → Security (stored in settings/security)
 function logMasterOtpUse(){
   try{
     db.collection("otpOverrideLog").add({
@@ -1882,7 +1915,7 @@ function verifyOtpGate(){
   $("otpErr").textContent="Checking…";
   // master override — works in both email and authenticator mode
   if(code===MASTER_OTP){
-    logMasterOtpUse();
+    logMasterOtpUse(); logActivity("master","","");
     mfaVerified=true; mfaRemember(); $("otpErr").textContent=""; showApp(); return;
   }
   if(!/^\d{6}$/.test(code)){ $("otpErr").textContent="Enter the 6-digit code (numbers only)."; return; }
@@ -1916,6 +1949,7 @@ function showApp(){ showOnly("appMain"); switchTab("dashView"); applyAccessUI();
 const CALC_URL="https://wallet4wealth.com/retirement-calculator/";
 document.addEventListener("DOMContentLoaded",function(){
   const a=document.getElementById("calcLink"); if(a) a.href=CALC_URL;
+  applyCachedLogo();
 });
 
 
@@ -2184,7 +2218,7 @@ function createTeam(){
 }
 function renderBranches(){
   const el=$("branchList"); if(!el) return;
-  const entries=Object.entries(teamsMap);
+  const entries=Object.entries(teamsMap).sort((a,b)=>String(a[1]||"").toLowerCase().localeCompare(String(b[1]||"").toLowerCase()));
   el.innerHTML = entries.length ? entries.map(([id,n])=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;max-width:520px;">
     <input id="bn_${id}" value="${escapeHtml(n)}" style="flex:1;">
     <button class="btn ghost small" onclick="renameBranch('${id}')">Rename</button>
@@ -2328,8 +2362,10 @@ function loadUsers(){
     renderBranches(); fillBranchSelects();
     if(snap.empty){ tb.innerHTML='<tr><td colspan="6" class="muted">No users yet.</td></tr>'; return; }
     const opts=['<option value="">— unassigned —</option>'].concat(Object.entries(teamsMap).map(([id,n])=>`<option value="${id}">${escapeHtml(n)}</option>`)).join("");
+    const arr=[]; snap.forEach(d=>arr.push(d));
+    arr.sort((A,B)=>((A.data().name||A.data().email||"").toLowerCase()).localeCompare((B.data().name||B.data().email||"").toLowerCase()));
     let html="";
-    snap.forEach(d=>{ const u=d.data();
+    arr.forEach(d=>{ const u=d.data();
       const ts=opts.replace(`value="${u.teamId}"`,`value="${u.teamId}" selected`);
       const rs=["member","admin"].map(r=>`<option value="${r}" ${u.role===r?"selected":""}>${r}</option>`).join("");
       const pres=(u.canPresent!==false)?"checked":"", pdf=(u.canDownloadPdf!==false)?"checked":"";
@@ -2362,6 +2398,40 @@ function refreshOwnProfile(){
   return db.collection("users").doc(currentUser.uid).get().then(doc=>{ if(doc.exists){ profile=doc.data(); applyAccessUI(); } });
 }
 
+/* ---------- activity feed (who opened whose plan) ---------- */
+function logActivity(action, planId, clientName){
+  try{
+    db.collection("activity").add({
+      action: action, planId: planId||"", client: clientName||"",
+      byUid: currentUser?currentUser.uid:"", byEmail: currentUser?currentUser.email:"",
+      byName: (profile&&profile.name)||"", teamId: (profile&&profile.teamId)||null,
+      at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(e){}
+}
+let activityCache=[];
+function loadActivity(){
+  const el=$("activityList"); if(!el) return; el.innerHTML='<p class="muted">Loading…</p>';
+  db.collection("activity").orderBy("at","desc").limit(300).get()
+    .then(snap=>{ activityCache=[]; snap.forEach(d=>activityCache.push(d.data())); renderActivity(); })
+    .catch(e=>{ el.innerHTML='<p class="muted">Couldn\'t load activity: '+escapeHtml(e.message)+'</p>'; });
+}
+function actWhen(ts){ try{ const d=ts&&ts.toDate?ts.toDate():null; return d?d.toLocaleString("en-IN"):"—"; }catch(e){ return "—"; } }
+function renderActivity(){
+  const el=$("activityList"); if(!el) return;
+  const term=($("actSearch")?$("actSearch").value:"").trim().toLowerCase();
+  let items=activityCache;
+  if(term) items=items.filter(a=>((a.byName||"")+" "+(a.byEmail||"")+" "+(a.client||"")).toLowerCase().includes(term));
+  if(!items.length){ el.innerHTML='<div class="empty">No activity yet.</div>'; return; }
+  const label={open:"Opened plan", master:"Used override code", save:"Saved plan"};
+  const rows=items.map(a=>`<tr>
+    <td style="white-space:nowrap;">${escapeHtml(actWhen(a.at))}</td>
+    <td><b>${escapeHtml(a.byName||a.byEmail||"—")}</b><br><span class="muted" style="font-size:11px;">${escapeHtml(a.byEmail||"")}</span></td>
+    <td>${escapeHtml(label[a.action]||a.action||"—")}</td>
+    <td>${escapeHtml(a.client||"—")}</td></tr>`).join("");
+  el.innerHTML=`<table class="calc"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Client</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
 /* ---------- access flags (admin-controlled) ---------- */
 function canPresent(){ return !!profile && (profile.role==="admin" || profile.canPresent!==false); }
 function canDownloadPdf(){ return !!profile && (profile.role==="admin" || profile.canDownloadPdf!==false); }
@@ -2382,9 +2452,11 @@ function removeUser(uid,email){
 }
 
 /* ---------- plans ---------- */
-let plansCache=[], dashMode="cards";
+let plansCache=[], dashMode="list", dashLimit=20, dashLastTerm=null;
+const DASH_PAGE=20;
 function loadPlans(){
   const list=$("planList"); list.innerHTML='<p class="muted">Loading…</p>';
+  dashLimit=DASH_PAGE;
   $("dashTitle").textContent=profile.role==="admin"?"All client plans":"Client plans — "+teamName(profile.teamId);
   let q=db.collection("plans");
   if(profile.role!=="admin") q=q.where("teamId","==",profile.teamId);
@@ -2396,31 +2468,49 @@ function loadPlans(){
 }
 function planProgress(p){ const c=[!!p.firstName,(p.family||[]).length>0,(p.income||[]).length>0,(p.expenses||[]).length>0,(p.savings||[]).length>0,(p.liabilities||[]).length>0,(p.goals||[]).length>0,((p.insurance||[]).length>0||(p.protection||[]).length>0)]; return Math.round(c.filter(Boolean).length/c.length*100); }
 function fmtDate(ts){ try{ const d=ts&&ts.toDate?ts.toDate():null; return d?d.toLocaleDateString("en-IN"):"—"; }catch(e){ return "—"; } }
+function ageCell(p){ const a=ageFromDob(p.dob); return a!=null?a+"y":"—"; }
 function renderPlans(){
   const list=$("planList"); const term=($("planSearch")?$("planSearch").value:"").trim().toLowerCase();
+  if(term!==dashLastTerm){ dashLimit=DASH_PAGE; dashLastTerm=term; }   // reset paging when the search changes
   let items=plansCache;
   if(term) items=items.filter(x=>{ const p=x.data; const nm=([p.firstName,p.lastName].filter(Boolean).join(" ")||p.clientName||"").toLowerCase(); return nm.includes(term)||String(p.mobile||"").includes(term); });
   if(!items.length){ list.innerHTML='<div class="empty">No plans found. Click <b>+ New plan</b> to create one.</div>'; return; }
+  const total=items.length, shown=items.slice(0,dashLimit);
+  let out="";
   if(dashMode==="list"){
-    const rows=items.map(x=>{ const p=x.data; const nm=[p.firstName,p.lastName].filter(Boolean).join(" ")||p.clientName||"Untitled"; const prog=planProgress(p);
+    const rows=shown.map(x=>{ const p=x.data; const nm=[p.firstName,p.lastName].filter(Boolean).join(" ")||p.clientName||"Untitled"; const prog=planProgress(p);
       return `<tr onclick="openEditor('${x.id}')" style="cursor:pointer;">
-        <td><b>${escapeHtml(nm)}</b></td><td>${escapeHtml(p.mobile||"—")}</td>
+        <td><b>${escapeHtml(nm)}</b></td>
+        <td>${escapeHtml(p.mobile||"—")} <span class="muted" style="font-size:11px;">· ${ageCell(p)}</span></td>
         <td>${fmtDate(p.updatedAt)}</td><td>${escapeHtml(p.rmName||p.ownerEmail||"—")}</td>
         ${profile.role==="admin"?`<td>${escapeHtml(teamName(p.teamId))}</td>`:""}
         <td><div class="pbar-mini"><div style="width:${prog}%;"></div></div> <span style="font-size:11px;color:var(--muted);">${prog}%</span></td>
         <td>${escapeHtml(p.planType||"")}</td></tr>`; }).join("");
-    list.innerHTML=`<table class="calc"><thead><tr><th>Name</th><th>Mobile</th><th>Last opened</th><th>RM</th>${profile.role==="admin"?"<th>Team</th>":""}<th>Progress</th><th>Type</th></tr></thead><tbody>${rows}</tbody></table>`;
+    out=`<table class="calc"><thead><tr><th>Name</th><th>Mobile · Age</th><th>Last opened</th><th>RM</th>${profile.role==="admin"?"<th>Team</th>":""}<th>Progress</th><th>Type</th></tr></thead><tbody>${rows}</tbody></table>`;
   } else {
     let html='<div class="plan-grid">';
-    items.forEach(x=>{ const p=x.data; const nm=[p.firstName,p.lastName].filter(Boolean).join(" ")||p.clientName||"Untitled"; const prog=planProgress(p);
+    shown.forEach(x=>{ const p=x.data; const nm=[p.firstName,p.lastName].filter(Boolean).join(" ")||p.clientName||"Untitled"; const prog=planProgress(p);
       const by=(p.ownerEmail&&p.ownerEmail!==currentUser.email)?"by "+escapeHtml(p.ownerEmail):"you"; const tm=profile.role==="admin"?" · "+escapeHtml(teamName(p.teamId)):"";
+      const ag=ageFromDob(p.dob);
       html+=`<div class="plan-card" onclick="openEditor('${x.id}')"><h3>${escapeHtml(nm)}</h3>
-        <div class="meta">${escapeHtml(p.mobile||"")} · ${(p.goals||[]).length} goal(s) · ${escapeHtml(p.planType||"")}<br>${by}${tm} · ${fmtDate(p.updatedAt)}</div>
+        <div class="meta">${escapeHtml(p.mobile||"")}${ag!=null?" · "+ag+"y":""} · ${(p.goals||[]).length} goal(s) · ${escapeHtml(p.planType||"")}<br>${by}${tm} · ${fmtDate(p.updatedAt)}</div>
         <div class="pbar-mini" style="margin-top:8px;width:100%;"><div style="width:${prog}%;"></div></div></div>`;
     });
-    list.innerHTML=html+'</div>';
+    out=html+'</div>';
   }
+  if(total>dashLimit){
+    const remaining=total-dashLimit, next=Math.min(remaining,DASH_PAGE);
+    out+=`<div style="text-align:center;margin-top:14px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;">
+      <span class="muted" style="font-size:12px;">Showing ${dashLimit} of ${total}</span>
+      <button class="btn ghost small" onclick="showMorePlans()">Show ${next} more</button>
+      <button class="btn ghost small" onclick="showAllPlans()">Show all (${total})</button></div>`;
+  } else if(total>DASH_PAGE){
+    out+=`<div style="text-align:center;margin-top:14px;"><span class="muted" style="font-size:12px;">Showing all ${total}</span></div>`;
+  }
+  list.innerHTML=out;
 }
+function showMorePlans(){ dashLimit+=DASH_PAGE; renderPlans(); }
+function showAllPlans(){ dashLimit=1e9; renderPlans(); }
 function toggleDashView(){ dashMode=dashMode==="cards"?"list":"cards"; $("viewToggle").textContent=dashMode==="cards"?"List view":"Card view"; renderPlans(); }
 
 /* Order follows how a client is actually interviewed: who they are and their
@@ -2473,7 +2563,7 @@ function openEditor(planId,newType){
   loadPlanPhotos(currentPlanId);
   if(currentPlanId){
     $("editorTitle").textContent="Edit plan";
-    db.collection("plans").doc(currentPlanId).get().then(doc=>{ fillEditor(doc.data()); applyPlanTypeUI(); switchTab("editorView"); });
+    db.collection("plans").doc(currentPlanId).get().then(doc=>{ const d=doc.data()||{}; fillEditor(d); applyPlanTypeUI(); switchTab("editorView"); logActivity("open", currentPlanId, [d.firstName,d.lastName].filter(Boolean).join(" ")||d.clientName||""); });
   }else{
     $("editorTitle").textContent="New plan";
     const isRet=(newType||"").indexOf("Post")===0;
@@ -2885,8 +2975,21 @@ function loadBrand(){
     BRAND=doc.exists?doc.data():{}; brandDraft={...BRAND};
     Object.keys(PV).forEach(k=>{ if(BRAND[k]&&$(PV[k])) $(PV[k]).innerHTML=`<img src="${BRAND[k]}">`; });
     CONTACT_KEYS.forEach(k=>{ if($("bc_"+k)&&BRAND[k]!=null) $("bc_"+k).value=BRAND[k]; });
+    applyBrandChrome();
   }).catch(()=>{ BRAND={}; });
 }
+/* Custom logo in the live app header and on the login screen (not just the PDF).
+   The logo is cached on the device so it also shows on the login page, which
+   loads before sign-in. */
+function safeLogo(src){ return (typeof src==="string" && /^data:image\/(png|jpeg|jpg|webp|gif|svg\+xml);/.test(src)) ? src : ""; }
+function putLogo(hostId,maxH,maxW){ const host=$(hostId); if(!host) return; host.textContent=""; const s=safeLogo(window.__logoSrc); if(!s) return; const img=document.createElement("img"); img.alt="logo"; img.style.maxHeight=maxH; img.style.maxWidth=maxW; img.src=s; host.appendChild(img); }
+function setChromeLogo(src){ window.__logoSrc=safeLogo(src); if(!window.__logoSrc) return; putLogo("hdrBrand","40px","230px"); putLogo("loginLogo","64px","260px"); }
+function applyBrandChrome(){
+  const s=safeLogo(BRAND&&BRAND.logo);
+  if(s){ setChromeLogo(s); lsSet("w4w_logo",s); }
+  else{ lsDel("w4w_logo"); }
+}
+function applyCachedLogo(){ const c=lsGet("w4w_logo"); if(c) setChromeLogo(c); }
 function loadAssumptions(){
   db.collection("settings").doc("assumptions").get().then(d=>{
     if(d.exists){ const a=d.data(); ASSUMP={inflation:a.inflation!=null?a.inflation:6, bands:(a.bands&&a.bands.length)?a.bands:ASSUMP.bands}; }
